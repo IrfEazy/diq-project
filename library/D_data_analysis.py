@@ -156,7 +156,7 @@ def clustering(df, method, n_clusters, seed):
 
 def distance_measurement(X, y, method, regression, seed):
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import f1_score, mean_squared_error
+    from sklearn.metrics import f1_score, root_mean_squared_error
 
     X = StandardScaler().fit_transform(X)
     X = np.nan_to_num(X)
@@ -198,8 +198,8 @@ def distance_measurement(X, y, method, regression, seed):
         y_fit = model.predict(X_train)
 
         if regression:
-            mse_pred = abs(mean_squared_error(y_test, y_pred, squared=False))
-            mse_fit = abs(mean_squared_error(y_train, y_fit, squared=False))
+            mse_pred = abs(root_mean_squared_error(y_test, y_pred))
+            mse_fit = abs(root_mean_squared_error(y_train, y_fit))
 
             distances_train_test[i] = mse_pred - mse_fit
         else:

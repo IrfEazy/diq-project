@@ -115,7 +115,7 @@ def pollution_first_second_third_experiments(data, percentage, seed=2023):
         return data
 
     column = np.random.randint(data.shape[1])
-    arr = data[column].values
+    arr = data[column].to_numpy(copy=True)
     target_distinctness = 1 - percentage
     arr_len = len(arr)
     # Get the unique values from the original array
@@ -342,7 +342,7 @@ def pollution_seventh_experiment(data, percentage, seed=2023):
         # Randomly select a feature (column)
         feature = np.random.randint(0, len(data.columns))
         # Replace the value at the selected index and feature with a random integer between 0 and 100
-        np.put(data.iloc[:, feature].values, [i], [np.random.randint(0, 100)])
+        data.iloc[i, feature] = np.random.randint(0, 100)
 
     # Return the DataFrame with introduced outliers
     return data
@@ -531,7 +531,7 @@ def pollute_data_mcar_for_one_feature(data, feature, percent_incomplete=0.2, see
     mask = np.random.rand(*data[feature].shape) < percent_incomplete
 
     # MCAR experiment: introduce NaN values in the DataFrame according to the generated mask
-    data[feature][mask] = np.nan
+    data.loc[mask, feature] = np.nan
 
     return data
 
@@ -568,7 +568,7 @@ def pollute_data_mar(data, feature_referenced, feature_dependent, seed=2023):
     # Simulate a non-random incompleteness pattern based on the values of certain features
     for element in data.index:
         if data[feature_referenced][element] > 100:
-            data[feature_dependent][element] = np.nan
+            data.loc[element, feature_dependent] = np.nan
 
 
 def pollute_data_mnar(data, feature_mnar, seed=2023):
@@ -608,7 +608,7 @@ def pollute_data_mnar(data, feature_mnar, seed=2023):
     for element in data.index:
         if data[feature_mnar][element] > 50:
             if data[feature_mnar][element] < 150:
-                data[feature_mnar][element] = np.nan
+                data.loc[element, feature_mnar] = np.nan
 
     return data
 
