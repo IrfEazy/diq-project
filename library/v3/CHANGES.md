@@ -34,3 +34,10 @@ by import. v2 itself is frozen.
   record, with seeds, hashes, pollution meta and config, in `Plot/v3/results/<exp_id>.json`. Figures are drawn
   from that JSON only, as mean +- SD bands over seeds (descriptive) under `Plot/v3/<exp_id>/`.
 - Classification and clustering helpers from v2 `D_data_analysis` are not carried over.
+
+- Review fixes (wp-012): `make_data` may take `(seed, x)` for sample-size axes, in which case `clean` is fitted per
+  x. With `make_data(seed)`, `clean` is still reused across x, records carry `reused_from_x`, and a `pollute` that
+  changes the row count raises instead of silently comparing different datasets. `summarise` reports `n_null`,
+  warns on null metrics and plots annotate them. `status` now only reflects convergence warnings and GP bound
+  hits; other warning categories go to a separate `warnings` field. The runner restores the global numpy RNG state
+  around `pollute`.

@@ -25,14 +25,15 @@ polluters by import (`library.v2.my_functions`). Like `library/` and `library/v2
   transformer=StandardScaler())` on the training fold only. The imputer, the scaler and the target scaler never see
   test rows. Predictions are inverse-transformed, so metrics are in target units.
 - Metrics per fold are `test_nrmse` and `train_nrmse` (RMSE / `y_scale`), `test_r2`, `train_r2`, `fit_time` (seconds
-  for one fit), `n_train`, `n_test` and `status`. Train metrics come from the same fitted fold model; there is no
+  for one fit), `n_train`, `n_test`, `status` and `warnings`. Train metrics come from the same fitted fold model; there is no
   extra refit.
 - Splits: `ShuffleSplit(n_splits=5, test_size=0.3, random_state=split_seed)`.
 - `FiniteCheck` raises if NaN or inf would reach a model. Imputer `None` raises on NaN input. Only `HGBRegressor`
   accepts `'native'` (raw NaN).
-- `status` is `ok`, or a `;`-joined set of flags. The flags are `convergence_warning`, `warning:<Category>` and
+- `status` is `ok`, or a `;`-joined set of flags. The flags are `convergence_warning` and
   `gp_at_lower_bound:<param>` / `gp_at_upper_bound:<param>`, where a GP hyperparameter counts as at a bound when it is
-  within 0.01 of it in log space.
+  within 0.01 of it in log space. Other warning categories (for example `FutureWarning`) do not change `status`; their
+  names are listed in the record's `warnings` field.
 
 ### Models (`MODELS`)
 
@@ -92,8 +93,11 @@ in each record's `meta.seeds`. Consequences:
   not depend on the condition), and all conditions, models and x values share the same folds. Each record has
   `data_hash` (the polluted X and y) and `test_hash` (the test rows), so the pairing can be audited.
 - Different seeds vary the data generation, the pollution and the splits.
-- Tasks are `(seed, x, condition, model)`. `clean` does not depend on x, so it is fitted once per (seed, model) and
-  its fold records are repeated for every x. They run through joblib (loky) with BLAS/OpenMP limited to one thread per
+- Tasks are `(seed, x, condition, model)`. If `make_data(seed)` ignores x, `clean` does not depend on x, so it is
+  fitted once per (seed, model) and its fold records are repeated for every x (`reused_from_x` holds the x it was
+  fitted at, `null` otherwise). If `make_data` takes `(seed, x)`, the data and `clean` are generated and fitted per x
+  and nothing is reused. If `pollute` changes the number of rows while `clean` is reused, `run_experiment` raises.
+  The runner saves and restores the global numpy RNG state around `pollute`. They run through joblib (loky) with BLAS/OpenMP limited to one thread per
   task (`threadpoolctl`), so results do not depend on `n_jobs` apart from `fit_time`. Selfcheck (3) checks this.
 - Band semantics: within each seed the folds are averaged first. Then the mean and SD (ddof=1) are taken over the
   seeds. The band is labelled "mean +- SD over seeds (descriptive)". It describes spread across repetitions and is
@@ -106,9 +110,10 @@ payload. The payload contains `version: "v3"`, `exp_id`, `title`, `x_label`, `x_
 `seeds`, `config` (n_splits, test_size, noise_ratio, GP bounds and restarts, library versions, plus the optional
 `config=` dict) and `records`. Each record is one fold:
 `{seed, x, condition, model, imputer, data_hash, y_scale, fold, test_hash, test_nrmse, test_r2, train_nrmse, train_r2,
-fit_time, status, n_train, n_test, meta}`. `meta` is the polluter's own meta plus `realised` (`n_rows`, the realised
+fit_time, status, warnings, n_train, n_test, reused_from_x, meta}`. `meta` is the polluter's own meta plus `realised` (`n_rows`, the realised
 `missing_rate` and `distinct_fraction` per column) and `seeds`. The JSON is strict: non-finite values become `null`,
-and `load_results` rejects NaN and Infinity.
+and `load_results` rejects NaN and Infinity. `summarise` reports `n_null` (null metric folds per group, skipped in
+the mean) and emits a `RuntimeWarning` when any exist; plots append "(k null folds)" to the legend entry.
 
 Conditions: `clean` (unpolluted, imputer None, the reference), `polluted` (polluted, imputer None, for example
 distinctness experiments), any imputer name above, `native`, and `duplicated` / `deduplicated` / `naive_split`. The
@@ -143,6 +148,14 @@ summarise(load_results("c01_mcar"))       # DataFrame: condition, model, x, mean
 run_experiment("d11_duplicates", "Duplicate records", "duplicate rate", [0.0, 0.2, 0.4],
                make_data, pollute_duplicates, models=ev.STUDY_MODELS,
                conditions=["duplicated", "deduplicated", "naive_split"], seeds=[0, 1, 2], n_jobs=8)
+```
+
+Sample-size or shape experiments must generate the data per x, so write `make_data(seed, x)`; `x` is passed to it
+(detected from the signature) and `clean` is then fitted per x:
+
+```python
+def make_data_n(seed, x):                 # x = number of rows
+    return make_regression_data(int(x), 3, 3, seed)
 ```
 
 Define `make_data` and `pollute` at notebook top level. joblib's loky backend pickles them with cloudpickle.
