@@ -36,7 +36,9 @@ def _draw(ax, table, key_col, keys, order, x_axis):
         if part["mean"].isna().all():
             continue
         st = _style(key, order)
-        ax.plot(x_axis, part["mean"], label=key, linewidth=2, markersize=5, **st)
+        n_null = int(part["n_null"].fillna(0).sum())
+        label = f"{key} ({n_null} null folds)" if n_null else key
+        ax.plot(x_axis, part["mean"], label=label, linewidth=2, markersize=5, **st)
         ax.fill_between(x_axis, part["mean"] - part["sd"], part["mean"] + part["sd"], color=st["color"],
                         alpha=0.15, linewidth=0)
 
