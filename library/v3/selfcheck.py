@@ -192,12 +192,98 @@ def check_gp():
     assert "lower_bound" not in gp["status"], gp["status"]
 
 
+def check_gp_flags():
+    """(LOW4) _gp_flags on pinned kernels for lower, upper and interior values; KNN scaler precedes the imputer."""
+    from types import SimpleNamespace
+
+    from sklearn.gaussian_process import GaussianProcessRegressor
+    from sklearn.gaussian_process.kernels import RBF
+
+    def flags(length_scale, fixed=False):
+        bounds = "fixed" if fixed else (0.1, 1e3)
+        model = GaussianProcessRegressor()
+        model.kernel_ = RBF(length_scale=length_scale, length_scale_bounds=bounds)
+        return ev._gp_flags(SimpleNamespace(regressor_=SimpleNamespace(named_steps={"model": model})))
+
+    assert flags(0.1) == ["gp_at_lower_bound:length_scale"], flags(0.1)
+    assert flags(1e3) == ["gp_at_upper_bound:length_scale"], flags(1e3)
+    assert flags(5.0) == [] and flags(0.1, fixed=True) == []
+    names = [name for name, _ in ev.IMPUTERS["knn"](SEED)]
+    assert names.index("pre_scaler") < names.index("imputer"), names
+    assert ev._status([]) == "ok" and ev._status(["convergence_warning"]) == "convergence_warning"
+
+
+def check_status_warnings():
+    """(LOW3) a non-convergence warning is recorded in `warnings` and leaves status ok."""
+    import warnings as _w
+
+    class Noisy(SpyModel):
+        def fit(self, X, y):
+            _w.warn("noise", FutureWarning)
+            return super().fit(X, y)
+
+    X, y, y_scale = make_regression_data(100, 3, 3, SEED)
+    ev.MODELS["Noisy"] = lambda seed: Noisy()
+    try:
+        rec = ev.evaluate(X, y, "Noisy", None, SEED, y_scale, n_splits=1)[0]
+    finally:
+        del ev.MODELS["Noisy"]
+    assert rec["status"] == "ok" and rec["warnings"] == ["FutureWarning"], rec
+
+
+def _make_data_x(seed, x):
+    return make_regression_data(int(x), 3, 3, seed)
+
+
+def _pollute_none(X, y, x, seed):
+    np.random.seed(7)  # legacy polluters mutate the global RNG; the runner must restore it
+    return X, y, {}
+
+
+def check_sample_size(tmp):
+    """(MED1, LOW5, MED2) make_data(seed, x): clean fitted per x; row-changing pollute raises; null folds warned."""
+    import warnings as _w
+
+    kw = dict(exp_id="size", title="size", x_label="n", x_axis=[100, 200, 400], models=["LinearRegressor"],
+              seeds=[0], out_dir=tmp)
+    np.random.seed(123)
+    expected = np.random.get_state()[1].copy()
+    p = runner.run_experiment(make_data=_make_data_x, pollute=_pollute_none, conditions=["clean", "polluted"], **kw)
+    assert np.array_equal(np.random.get_state()[1], expected), "runner mutated the global numpy RNG"
+    clean = [r for r in p["records"] if r["condition"] == "clean" and r["fold"] == 0]
+    sizes = [r["n_train"] for r in clean]
+    assert sizes == sorted(set(sizes)) and len(sizes) == 3, sizes
+    assert all(r["reused_from_x"] is None for r in p["records"])
+    assert len({r["data_hash"] for r in clean}) == 3
+
+    def subsample(X, y, x, seed):
+        return X.iloc[:int(x) // 2], y[:int(x) // 2], {}
+
+    try:
+        runner.run_experiment(make_data=_make_data, pollute=subsample, conditions=["clean", "polluted"], **kw)
+    except ValueError as e:
+        assert "make_data(seed, x)" in str(e)
+    else:
+        raise AssertionError("expected ValueError for row-changing pollute with reused clean")
+    p = runner.run_experiment(make_data=_make_data, pollute=_pollute_mcar, conditions=["clean", "mean"],
+                              **{**kw, "x_axis": [0.1, 0.3]})
+    origin = {(r["condition"], r["x"]): r["reused_from_x"] for r in p["records"]}
+    assert origin[("clean", 0.1)] is None and origin[("clean", 0.3)] == 0.1 and origin[("mean", 0.3)] is None
+    # null metrics are counted and warned about
+    p["records"][0]["test_nrmse"] = None
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        table = runner.summarise(p)
+    assert table["n_null"].sum() == 1 and any("null" in str(w.message) for w in caught)
+
+
 def main():
     start = time.perf_counter()
     with threadpool_limits(limits=1):
-        for check in (check_fold_fitting, check_missing, check_duplicates, check_runner, check_gp):
+        for check in (check_fold_fitting, check_missing, check_duplicates, check_runner, check_gp, check_gp_flags,
+                      check_status_warnings, check_sample_size):
             t = time.perf_counter()
-            if check is check_runner:
+            if check in (check_runner, check_sample_size):
                 with tempfile.TemporaryDirectory() as tmp:
                     check(tmp)
             else:
