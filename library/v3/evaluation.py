@@ -151,8 +151,8 @@ def fit_score(estimator, X_train, y_train, X_test, y_test, y_scale):
         fit_time = time.perf_counter() - start
         pred_train = estimator.predict(X_train)
         pred_test = estimator.predict(X_test)
-    flags = ["convergence_warning" if issubclass(w.category, ConvergenceWarning) else f"warning:{w.category.__name__}"
-             for w in caught]
+    flags = ["convergence_warning" for w in caught if issubclass(w.category, ConvergenceWarning)]
+    other = sorted({w.category.__name__ for w in caught if not issubclass(w.category, ConvergenceWarning)})
     flags += _gp_flags(estimator)
     return {
         "test_nrmse": nrmse(y_test, pred_test, y_scale),
@@ -161,6 +161,7 @@ def fit_score(estimator, X_train, y_train, X_test, y_test, y_scale):
         "train_r2": float(r2_score(y_train, pred_train)),
         "fit_time": float(fit_time),
         "status": _status(flags),
+        "warnings": other,
         "n_train": int(len(y_train)),
         "n_test": int(len(y_test)),
     }
