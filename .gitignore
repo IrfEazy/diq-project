@@ -153,3 +153,6 @@ cython_debug/
 
 # Ignore all pdfs in every folder
 **/*.pdf
+
+# Generated figures and results JSON (Plot/, Plot/v2/, Plot/v3/)
+Plot/
