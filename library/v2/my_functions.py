@@ -361,7 +361,10 @@ def pollute_data_mnar(data, feature_mnar, seed=2023, q_low=0.25, q_high=0.75):
 
 
 def _to_float(value):
-    return None if value is None else float(value)
+    if value is None:
+        return None
+    value = float(value)
+    return value if np.isfinite(value) else None
 
 
 def _write_results_json(x_axis_values, x_label, results, title, algorithms):
@@ -382,7 +385,7 @@ def _write_results_json(x_axis_values, x_label, results, title, algorithms):
         },
     }
     with open(os.path.join(directory, str(title) + ".json"), "w") as f:
-        json.dump(payload, f)
+        json.dump(payload, f, allow_nan=False)
 
 
 def plot_results(x_axis_values, x_label, results, title, algorithms, cleaned_data=False):

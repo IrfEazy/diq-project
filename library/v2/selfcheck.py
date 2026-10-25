@@ -39,16 +39,39 @@ def check_distinctness():
             assert nu == 1 and any("clipped" in str(x.message) for x in w)
         else:
             assert nu / n <= 1 - p + 1e-12 and nu / n >= 1 - p - 1 / n - 1e-12, (p, nu)
-    # fourth, eighth, ninth/tenth
-    out = mf.pollution_fourth_experiment(X, 0.3)
-    assert sum(not X[c].equals(out[c]) for c in X.columns) <= X.shape[1] // 2 + 1
-    out = mf.pollution_eighth_experiment(X, 0.4)
-    nus = sorted(out[c].nunique() for c in X.columns if not X[c].equals(out[c]))
-    assert len(nus) == 2 and nus[0] <= 0.6 * n and nus[1] <= 0.6 * n + 1
-    assert max(nus) > min(nus) or True
-    for inf_flag in (True, False):
+    # fourth: replicate the function's own draws (always around the ORIGINAL p, no random walk)
+    p = 0.3
+    out = mf.pollution_fourth_experiment(X, p)
+    np.random.seed(2023)
+    cols = np.random.choice(X.columns, X.shape[1] // 2 + 1, replace=False)
+    expected = []
+    for c in cols:  # the reductions consume the same stream, so replay them in order
+        expected.append(float(np.clip(np.random.normal(p, 0.1), 0, 1)))
+        mf._reduce_distinctness(X[c].to_numpy(), expected[-1])
+    assert len(set(cols)) == len(cols) == X.shape[1] // 2 + 1
+    changed = [c for c in X.columns if not X[c].equals(out[c])]
+    assert sorted(changed) == sorted(c for c, q in zip(cols, expected) if q > 0), (changed, cols, expected)
+    for c, q in zip(cols, expected):
+        ratio = out[c].nunique() / n
+        assert 1 - q - 1 / n - 1e-12 <= ratio <= 1 - q + 1e-12, (c, q, ratio)
+    # eighth: first column reduced with p, second with 1 - p
+    p = 0.4
+    out = mf.pollution_eighth_experiment(X, p)
+    np.random.seed(2023)
+    first, second = np.random.choice(X.columns, 2, replace=False)
+    assert sorted(c for c in X.columns if not X[c].equals(out[c])) == sorted([first, second])
+    r1, r2 = out[first].nunique() / n, out[second].nunique() / n
+    assert 1 - p - 1 / n - 1e-12 <= r1 <= 1 - p + 1 / n, r1
+    assert p - 1 / n - 1e-12 <= r2 <= p + 1 / n, r2
+    assert r1 > r2  # distinct targets (0.6 vs 0.4), so the two columns must differ
+    # ninth/tenth: changed columns are exactly the top-3 / bottom-3 of the function's own ranking
+    ranking = [col for _, col in mf._feature_ranking(X, y, 2023)]
+    for inf_flag, expected_cols in ((True, ranking[:3]), (False, ranking[-3:])):
         out = mf.pollution_ninth_tenth_experiments(X, y, 0.5, informative=inf_flag)
-        assert sum(out[c].nunique() <= n * 0.5 + 1e-9 for c in X.columns) == 3
+        changed = [i for i, c in enumerate(X.columns) if not X[c].equals(out[c])]
+        assert sorted(changed) == sorted(expected_cols), (inf_flag, changed, expected_cols)
+        for i in changed:
+            assert abs(out.iloc[:, i].nunique() / n - 0.5) <= 1 / n + 1e-12
     # fifth, sixth, seventh
     base = X.copy()
     out = mf.pollution_fifth_experiment(X, 0.04)
@@ -103,13 +126,27 @@ def check_plots():
         try:
             plt.close("all")
             mf.plot_results([0.1, 0.2, 0.3, 0.4], "x", results, "Selfcheck", algs)
-            pdfs = os.listdir("Plot/v2")
-            assert len([p for p in pdfs if p.endswith(".pdf")]) == 6, pdfs
+            mf.plot_results([0.1, 0.2, 0.3, 0.4], "x", results, "Selfcheck", algs, cleaned_data=True)
+            pdfs = [p for p in os.listdir("Plot/v2") if p.endswith(".pdf")]
+            assert len(pdfs) == 12, pdfs
+            assert all(os.path.getsize(os.path.join("Plot/v2", p)) > 0 for p in pdfs), pdfs
+            assert any("Zoomed trial" in p for p in pdfs) and any("Cleaned" in p for p in pdfs), pdfs
             js = os.listdir("Plot/v2/results")
             assert "Selfcheck - Trial regression.json" in js, js
+            assert "Selfcheck - Cleaned regression.json" in js, js
+            assert any("Zoomed trial regression" in j for j in js), js
+            assert any("Zoomed cleaned regression" in j for j in js), js
             with open("Plot/v2/results/Selfcheck - Trial regression.json") as f:
                 d = json.load(f)
             assert d["version"] == "v2" and d["algorithms"] == algs and len(d["results"][algs[0]]) == 4
+            # non-finite values must be written as null (strict JSON)
+            bad = [[{"mean_perf": float("nan"), "distance": float("inf"), "speed": 1.0}] * 4, results[1]]
+            mf._write_results_json([0.1, 0.2, 0.3, 0.4], "x", bad, "Strict", algs)
+            with open("Plot/v2/results/Strict.json") as f:
+                raw = f.read()
+            assert "NaN" not in raw and "Infinity" not in raw
+            d = json.loads(raw, parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))
+            assert d["results"][algs[0]][0] == {"mean_perf": None, "distance": None, "speed": 1.0}
         finally:
             os.chdir(old)
             plt.close("all")
