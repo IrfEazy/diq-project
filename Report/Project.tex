@@ -198,11 +198,11 @@
 
 \section{Problem description}
 \label{sec:section_1_1}%
-This report studies how two data quality issues, completeness and distinctness, affect a regression task. The data are synthetic: a regression dataset is generated, errors are injected on purpose (``pollution''), the polluted data are handled by simple cleaning steps where this makes sense, and the effect on the prediction error is measured. The report presents the third version (v3) of the study. The original experiments and a faithful repair of them (v2) remain in the repository for comparison, and \Cref{sec:differences} explains why v3 was needed and which original conclusions survive.
+This report studies how two data quality issues, completeness and distinctness, affect a regression task. The data are synthetic: a regression dataset is generated, errors are injected on purpose (``pollution''), the polluted data are handled by simple cleaning steps where this makes sense, and the effect on the prediction error is measured. The report presents the current study. The original implementation is preserved in the repository history (git tag \texttt{pre-flatten}), and \Cref{sec:differences} explains why the current protocol was needed and which original conclusions survive.
 
 \section{Data quality dimensions}
 \label{sec:dimensions}%
-Following Batini and Scannapieco~\cite{batini2016}, \emph{completeness} is the extent to which the data contain all the values that should be present, and in a table it is measured through the share of missing values. \emph{Distinctness} (or uniqueness) is the absence of repetition: at record level it concerns duplicate records referring to the same entity, and at column level it is the ratio between the number of distinct values and the number of rows. The original study reduced the column-level ratio; v3 additionally studies duplicate records, which is the more standard meaning of the dimension.
+Following Batini and Scannapieco~\cite{batini2016}, \emph{completeness} is the extent to which the data contain all the values that should be present, and in a table it is measured through the share of missing values. \emph{Distinctness} (or uniqueness) is the absence of repetition: at record level it concerns duplicate records referring to the same entity, and at column level it is the ratio between the number of distinct values and the number of rows. The original study reduced the column-level ratio; this study additionally studies duplicate records, which is the more standard meaning of the dimension.
 
 \section{Machine learning task and models}
 \label{sec:models}%
@@ -272,7 +272,7 @@ The conditions of families A and C are \texttt{polluted} (no imputer) and \textt
 \chapter{Pipeline implementation}
 \label{ch:chapter_3}%
 
-\section{The v3 protocol}
+\section{The evaluation protocol}
 \label{sec:protocol}%
 {\emergencystretch=3em Each fold fits a \texttt{Transformed\allowbreak Target\allowbreak Regressor} that wraps a \texttt{Pipeline} (imputer, \texttt{StandardScaler}, model) with a target scaler. The imputer and both scalers are fitted on the training rows only, so nothing is fitted on test rows; this avoids leakage \citep{kaufman2012}. The scale of nRMSE is fixed by the clean target. A finite-value check raises an error if a NaN would reach a model, so nothing is silently replaced.\par}
 
@@ -286,25 +286,25 @@ The Gaussian process uses a constant times RBF plus white-noise kernel \citep{ra
 
 \section{Differences from the original study}
 \label{sec:differences}%
-The original notebooks (v1) and the faithful repair (v2) are kept in the repository. An audit of v1 found the following defects.
+The original implementation is preserved in the repository history (git tag \texttt{pre-flatten}). An audit of it found the following defects.
 \begin{itemize}
     \item \textbf{No imputation equalled mean imputation.} The scaler was fitted on the data with NaN ignored and the NaN were then replaced by zero, which in standardised space is the column mean. The ``raw'' baseline of the original study was therefore mean imputation, and the finding that imputation does not help was partly built in.
     \item \textbf{Leakage.} Imputers and scalers were fitted before the train/test split, so test rows influenced the fill values.
     \item \textbf{MAR and MNAR created no missing values.} The thresholds (for example $>100$ on standard Gaussian features) never fired, so those two experiments were complete-data runs.
     \item \textbf{Discarded imputations.} The results of the standard-deviation, KNN and linear-regression imputation were discarded or applied to one column only, so they equalled the raw data.
     \item \textbf{Constants instead of NaN.} The ``less informative'' and ``most informative'' experiments wrote a constant value, not a missing value, and the incremental experiment made four of five features entirely missing.
-    \item \textbf{Sample-size axes too narrow.} The axes 1000--1090 rows cannot show a size effect. v3 uses 100--1000.
+    \item \textbf{Sample-size axes too narrow.} The axes 1000--1090 rows cannot show a size effect. this study uses 100--1000.
     \item \textbf{Distinctness target not reached,} one fixed column polluted, and noise variance used as standard deviation.
-    \item \textbf{Gaussian process collapse} which depended on scikit-learn's default kernel (\Cref{sec:gp}): in the original environment (scikit-learn $\le 1.8$) the default \texttt{Gaussian\allowbreak Process\allowbreak Regressor()} used fixed hyperparameters, so no optimisation ran and the model was a near noise-free RBF interpolator ($\alpha=10^{-10}$) with an ill-conditioned kernel matrix, and on polluted data the predictions exploded (errors in the thousands); from scikit-learn 1.9 the default kernel is optimised and, with the default length-scale bounds $(10^{-5},10^{5})$, converges to the length scale $10^{-5}$, i.e. the mean predictor. A \texttt{WhiteKernel} (v2) still collapsed on heavily tied data and restarts did not help; v3 sets the lower length-scale bound to $0.1$ in standardised units. The data were noise free, a single seed was used, and no clean reference was reported.
+    \item \textbf{Gaussian process collapse} which depended on scikit-learn's default kernel (\Cref{sec:gp}): in the original environment (scikit-learn $\le 1.8$) the default \texttt{Gaussian\allowbreak Process\allowbreak Regressor()} used fixed hyperparameters, so no optimisation ran and the model was a near noise-free RBF interpolator ($\alpha=10^{-10}$) with an ill-conditioned kernel matrix, and on polluted data the predictions exploded (errors in the thousands); from scikit-learn 1.9 the default kernel is optimised and, with the default length-scale bounds $(10^{-5},10^{5})$, converges to the length scale $10^{-5}$, i.e. the mean predictor. A \texttt{WhiteKernel} added in an intermediate faithful-fix stage still collapsed on heavily tied data and restarts did not help; this study sets the lower length-scale bound to $0.1$ in standardised units. The data were noise free, a single seed was used, and no clean reference was reported.
 \end{itemize}
-The corrections are listed in \texttt{library/v2/CHANGES.md} (faithful repair of the polluters) and \texttt{library/v3/CHANGES.md} (evaluation protocol). For the original conclusions the audit gives the following verdicts, checked against the v3 results.
+The corrections are listed in \texttt{library/HISTORY.md}. For the original conclusions the audit gives the following verdicts, checked against the results of this study.
 \begin{itemize}
-    \item \emph{Imputation is insufficient, error increases persistently:} not supported by the original runs, but in v3 the increase with the missing rate is confirmed (C1, C2), with the explanation that independent features cannot inform the imputer.
-    \item \emph{Missing values in the most informative features are critical:} plausible, but the original run did not create NaN; v3 confirms it (C3, C7--C9 against C8).
-    \item \emph{MAR and MNAR do not influence the model:} invalidated; they produced no NaN. In v3 MAR is mild (C5) and MNAR is harmful with biased imputers (C6).
-    \item \emph{The Gaussian process is more sensitive to missing data:} an artefact of the kernel setup; in v3 the process behaves like the linear model on the clean data (C0).
+    \item \emph{Imputation is insufficient, error increases persistently:} not supported by the original runs, but in this study the increase with the missing rate is confirmed (C1, C2), with the explanation that independent features cannot inform the imputer.
+    \item \emph{Missing values in the most informative features are critical:} plausible, but the original run did not create NaN; this study confirms it (C3, C7--C9 against C8).
+    \item \emph{MAR and MNAR do not influence the model:} invalidated; they produced no NaN. Here MAR is mild (C5) and MNAR is harmful with biased imputers (C6).
+    \item \emph{The Gaussian process is more sensitive to missing data:} an artefact of the kernel setup; in this study the process behaves like the linear model on the clean data (C0).
     \item \emph{Pollution of unimportant features is crucial (distinctness):} not reproduced (D10).
-    \item \emph{Distinctness behaves non-monotonically or is invariant to the percentage:} a consequence of the algorithm missing its target; in v3 the effect saturates (D1, D2).
+    \item \emph{Distinctness behaves non-monotonically or is invariant to the percentage:} a consequence of the algorithm missing its target; here the effect saturates (D1, D2).
     \item \emph{Distinctness of a single column significantly affects the model:} supported only against a clean reference, and the sample-size version (D3) shows no trend.
 \end{itemize}
 
@@ -320,7 +320,7 @@ Data are regenerated for every $n$ (3 informative features). The linear model re
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c00_baseline/clean_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c00_baseline/clean_test_nrmse.pdf}
 \caption{C0: test nRMSE of each model, condition \texttt{clean}, mean $\pm$ SD over 3 seeds.}
 \label{fig:c00_baseline_clean_test_nrmse}
 \end{figure}
@@ -328,7 +328,7 @@ Data are regenerated for every $n$ (3 informative features). The linear model re
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c00_baseline.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c00_baseline.tex}}
 \caption{C0: test nRMSE (lower is better) against sample size $n$ (100, 600, 1000 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c00_baseline}
 \end{table}
@@ -339,21 +339,21 @@ Cells of all 3 informative features are removed completely at random (1000 rows)
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c01_mcar_low/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c01_mcar_low/model_LinearRegressor_test_nrmse.pdf}
 \caption{C1: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c01_mcar_low_model_LinearRegressor_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c01_mcar_low/mean_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c01_mcar_low/mean_test_nrmse.pdf}
 \caption{C1: test nRMSE of each model, condition \texttt{mean}, mean $\pm$ SD over 3 seeds.}
 \label{fig:c01_mcar_low_mean_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c01_mcar_low/model_HGBRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c01_mcar_low/model_HGBRegressor_test_nrmse.pdf}
 \caption{C1: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c01_mcar_low_model_HGBRegressor_test_nrmse}
 \end{figure}
@@ -361,7 +361,7 @@ Cells of all 3 informative features are removed completely at random (1000 rows)
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c01_mcar_low.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c01_mcar_low.tex}}
 \caption{C1: test nRMSE (lower is better) against missing rate (0.025, 0.15, 0.25 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c01_mcar_low}
 \end{table}
@@ -372,21 +372,21 @@ The same setting at 27.5\%--50\% missing cells (\texttt{most\_frequent} and \tex
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c02_mcar_high/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c02_mcar_high/model_LinearRegressor_test_nrmse.pdf}
 \caption{C2: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c02_mcar_high_model_LinearRegressor_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c02_mcar_high/mean_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c02_mcar_high/mean_test_nrmse.pdf}
 \caption{C2: test nRMSE of each model, condition \texttt{mean}, mean $\pm$ SD over 3 seeds.}
 \label{fig:c02_mcar_high_mean_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c02_mcar_high/model_HGBRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c02_mcar_high/model_HGBRegressor_test_nrmse.pdf}
 \caption{C2: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c02_mcar_high_model_HGBRegressor_test_nrmse}
 \end{figure}
@@ -394,7 +394,7 @@ The same setting at 27.5\%--50\% missing cells (\texttt{most\_frequent} and \tex
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c02_mcar_high.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c02_mcar_high.tex}}
 \caption{C2: test nRMSE (lower is better) against missing rate (0.275, 0.4, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c02_mcar_high}
 \end{table}
@@ -405,7 +405,7 @@ The same setting at 27.5\%--50\% missing cells (\texttt{most\_frequent} and \tex
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c03_mcar_one_feature/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c03_mcar_one_feature/model_LinearRegressor_test_nrmse.pdf}
 \caption{C3: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c03_mcar_one_feature_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -413,7 +413,7 @@ The same setting at 27.5\%--50\% missing cells (\texttt{most\_frequent} and \tex
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c03_mcar_one_feature.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c03_mcar_one_feature.tex}}
 \caption{C3: test nRMSE (lower is better) against feature rank by true $|$coefficient$|$ (0, 5, 9 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c03_mcar_one_feature}
 \end{table}
@@ -424,7 +424,7 @@ Column $i$ loses $10 i$\% of its cells (5 features, 3 informative) while $n$ gro
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c04_incremental/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c04_incremental/model_LinearRegressor_test_nrmse.pdf}
 \caption{C4: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c04_incremental_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -432,7 +432,7 @@ Column $i$ loses $10 i$\% of its cells (5 features, 3 informative) while $n$ gro
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c04_incremental.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c04_incremental.tex}}
 \caption{C4: test nRMSE (lower is better) against sample size $n$ (100, 600, 1000 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c04_incremental}
 \end{table}
@@ -443,7 +443,7 @@ Feature 2 is removed where feature 1 exceeds its $(1-x)$ quantile, so the realis
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c05_mar/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c05_mar/model_LinearRegressor_test_nrmse.pdf}
 \caption{C5: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c05_mar_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -451,7 +451,7 @@ Feature 2 is removed where feature 1 exceeds its $(1-x)$ quantile, so the realis
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c05_mar.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c05_mar.tex}}
 \caption{C5: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c05_mar}
 \end{table}
@@ -462,14 +462,14 @@ Feature 1 is removed when its own value exceeds its $(1-x)$ quantile, so the lar
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c06_mnar/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c06_mnar/model_LinearRegressor_test_nrmse.pdf}
 \caption{C6: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c06_mnar_model_LinearRegressor_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c06_mnar/model_HGBRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c06_mnar/model_HGBRegressor_test_nrmse.pdf}
 \caption{C6: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c06_mnar_model_HGBRegressor_test_nrmse}
 \end{figure}
@@ -477,7 +477,7 @@ Feature 1 is removed when its own value exceeds its $(1-x)$ quantile, so the lar
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c06_mnar.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c06_mnar.tex}}
 \caption{C6: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c06_mnar}
 \end{table}
@@ -488,7 +488,7 @@ The 3 most important of 9 features (4 informative) lose 5\%--50\% of their cells
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c07_mcar_most/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c07_mcar_most/model_LinearRegressor_test_nrmse.pdf}
 \caption{C7: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c07_mcar_most_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -496,7 +496,7 @@ The 3 most important of 9 features (4 informative) lose 5\%--50\% of their cells
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c07_mcar_most.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c07_mcar_most.tex}}
 \caption{C7: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c07_mcar_most}
 \end{table}
@@ -507,7 +507,7 @@ The same experiment for the 3 least important features. The linear model with an
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c08_mcar_less/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c08_mcar_less/model_LinearRegressor_test_nrmse.pdf}
 \caption{C8: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c08_mcar_less_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -515,7 +515,7 @@ The same experiment for the 3 least important features. The linear model with an
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c08_mcar_less.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c08_mcar_less.tex}}
 \caption{C8: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c08_mcar_less}
 \end{table}
@@ -526,7 +526,7 @@ Both sets (the 3 most and the 3 least important features, ranked once on the cle
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c09_mcar_mixed/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c09_mcar_mixed/model_LinearRegressor_test_nrmse.pdf}
 \caption{C9: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c09_mcar_mixed_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -534,7 +534,7 @@ Both sets (the 3 most and the 3 least important features, ranked once on the cle
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c09_mcar_mixed.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c09_mcar_mixed.tex}}
 \caption{C9: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c09_mcar_mixed}
 \end{table}
@@ -545,14 +545,14 @@ All 10 features lose a share $x$ of their cells at random and feature 0 addition
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c10_mcar_mnar/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c10_mcar_mnar/model_LinearRegressor_test_nrmse.pdf}
 \caption{C10: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c10_mcar_mnar_model_LinearRegressor_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/c10_mcar_mnar/model_HGBRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{c10_mcar_mnar/model_HGBRegressor_test_nrmse.pdf}
 \caption{C10: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:c10_mcar_mnar_model_HGBRegressor_test_nrmse}
 \end{figure}
@@ -560,7 +560,7 @@ All 10 features lose a share $x$ of their cells at random and feature 0 addition
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/c10_mcar_mnar.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/c10_mcar_mnar.tex}}
 \caption{C10: test nRMSE (lower is better) against MCAR rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:c10_mcar_mnar}
 \end{table}
@@ -574,7 +574,7 @@ One random feature of 3 loses distinct values. The polluted linear model rises f
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d1_mid_high/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d1_mid_high/polluted_test_nrmse.pdf}
 \caption{D1: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d1_mid_high_polluted_test_nrmse}
 \end{figure}
@@ -582,7 +582,7 @@ One random feature of 3 loses distinct values. The polluted linear model rises f
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d1_mid_high.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d1_mid_high.tex}}
 \caption{D1: test nRMSE (lower is better) against fraction of non-distinct values (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d1_mid_high}
 \end{table}
@@ -593,7 +593,7 @@ From 50\% to 100\% the linear model goes $0.271 \pm 0.038$, $0.282 \pm 0.045$, $
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d2_mid_low/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d2_mid_low/polluted_test_nrmse.pdf}
 \caption{D2: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d2_mid_low_polluted_test_nrmse}
 \end{figure}
@@ -601,18 +601,18 @@ From 50\% to 100\% the linear model goes $0.271 \pm 0.038$, $0.282 \pm 0.045$, $
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d2_mid_low.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d2_mid_low.tex}}
 \caption{D2: test nRMSE (lower is better) against fraction of non-distinct values (0.5, 0.75, 1 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d2_mid_low}
 \end{table}
 
 \subsection{D3: fixed distinctness, increasing sample size}
 \label{sec:d3_fixed_n}
-With a fixed 20\% of non-distinct values in one random feature, the linear model gives $0.412 \pm 0.102$, $0.514 \pm 0.052$ and $0.232 \pm 0.015$ at $n=100$, 600 and 1000 (clean $0.188$, $0.197$, $0.199$). There is no monotone size trend, and the variation is mainly between the values of $n$ rather than between seeds (the SD over seeds is moderate and falls with $n$). In this experiment the data are regenerated for each $n$ (\texttt{make\_data(seed, x)}). Within a seed, the polluter (\texttt{pollution\_first\_second\_third\_experiments} in \texttt{library/v2/my\_functions.py}, seeded with the per-repetition pollute seed) picks the same column index at every $n$, but \texttt{make\_regression} draws the coefficients after $X$, so the true coefficients, and hence the weight of the polluted column, change with $n$. The curve therefore reflects the weight of the polluted feature at each $n$, not the sample size. The realised distinct fraction is $0.8$ at every $n$.
+With a fixed 20\% of non-distinct values in one random feature, the linear model gives $0.412 \pm 0.102$, $0.514 \pm 0.052$ and $0.232 \pm 0.015$ at $n=100$, 600 and 1000 (clean $0.188$, $0.197$, $0.199$). There is no monotone size trend, and the variation is mainly between the values of $n$ rather than between seeds (the SD over seeds is moderate and falls with $n$). In this experiment the data are regenerated for each $n$ (\texttt{make\_data(seed, x)}). Within a seed, the polluter (\texttt{pollution\_first\_second\_third\_experiments} in \texttt{library/pollution.py}, seeded with the per-repetition pollute seed) picks the same column index at every $n$, but \texttt{make\_regression} draws the coefficients after $X$, so the true coefficients, and hence the weight of the polluted column, change with $n$. The curve therefore reflects the weight of the polluted feature at each $n$, not the sample size. The realised distinct fraction is $0.8$ at every $n$.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d3_fixed_n/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d3_fixed_n/polluted_test_nrmse.pdf}
 \caption{D3: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d3_fixed_n_polluted_test_nrmse}
 \end{figure}
@@ -620,7 +620,7 @@ With a fixed 20\% of non-distinct values in one random feature, the linear model
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d3_fixed_n.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d3_fixed_n.tex}}
 \caption{D3: test nRMSE (lower is better) against sample size $n$ (100, 600, 1000 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d3_fixed_n}
 \end{table}
@@ -631,7 +631,7 @@ Several of 9 features (4 informative) are polluted with percentages drawn around
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d4_features/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d4_features/polluted_test_nrmse.pdf}
 \caption{D4: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d4_features_polluted_test_nrmse}
 \end{figure}
@@ -639,7 +639,7 @@ Several of 9 features (4 informative) are polluted with percentages drawn around
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d4_features.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d4_features.tex}}
 \caption{D4: test nRMSE (lower is better) against mean percentage (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d4_features}
 \end{table}
@@ -650,7 +650,7 @@ Two random columns are polluted, with $x$ and $1-x$ non-distinct values. At $x=0
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d8_high_low/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d8_high_low/polluted_test_nrmse.pdf}
 \caption{D8: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d8_high_low_polluted_test_nrmse}
 \end{figure}
@@ -658,7 +658,7 @@ Two random columns are polluted, with $x$ and $1-x$ non-distinct values. At $x=0
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d8_high_low.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d8_high_low.tex}}
 \caption{D8: test nRMSE (lower is better) against fraction of non-distinct values $x$ (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d8_high_low}
 \end{table}
@@ -669,7 +669,7 @@ The 3 most important of 9 features are polluted. The linear model goes from $0.2
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d9_informative/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d9_informative/polluted_test_nrmse.pdf}
 \caption{D9: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d9_informative_polluted_test_nrmse}
 \end{figure}
@@ -677,7 +677,7 @@ The 3 most important of 9 features are polluted. The linear model goes from $0.2
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d9_informative.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d9_informative.tex}}
 \caption{D9: test nRMSE (lower is better) against fraction of non-distinct values (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d9_informative}
 \end{table}
@@ -688,7 +688,7 @@ The same on the 3 least important features. The linear model stays at $0.200$, $
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d10_less_informative/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d10_less_informative/polluted_test_nrmse.pdf}
 \caption{D10: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d10_less_informative_polluted_test_nrmse}
 \end{figure}
@@ -696,7 +696,7 @@ The same on the 3 least important features. The linear model stays at $0.200$, $
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d10_less_informative.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d10_less_informative.tex}}
 \caption{D10: test nRMSE (lower is better) against fraction of non-distinct values (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d10_less_informative}
 \end{table}
@@ -708,14 +708,14 @@ Exact copies of rows are appended (1000 original rows, 3 features). With group-a
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d11_duplicates/model_KNNRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d11_duplicates/model_KNNRegressor_test_nrmse.pdf}
 \caption{D11: test nRMSE of \texttt{KNNRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:d11_duplicates_model_KNNRegressor_test_nrmse}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d11_duplicates/model_LinearRegressor_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d11_duplicates/model_LinearRegressor_test_nrmse.pdf}
 \caption{D11: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
 \label{fig:d11_duplicates_model_LinearRegressor_test_nrmse}
 \end{figure}
@@ -723,7 +723,7 @@ Exact copies of rows are appended (1000 original rows, 3 features). With group-a
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d11_duplicates.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d11_duplicates.tex}}
 \caption{D11: test nRMSE (lower is better) against duplicate rate (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d11_duplicates}
 \end{table}
@@ -735,7 +735,7 @@ Gaussian noise is added to all cells. The linear model degrades smoothly, $0.216
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d5_noise/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d5_noise/polluted_test_nrmse.pdf}
 \caption{D5: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d5_noise_polluted_test_nrmse}
 \end{figure}
@@ -743,7 +743,7 @@ Gaussian noise is added to all cells. The linear model degrades smoothly, $0.216
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d5_noise.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d5_noise.tex}}
 \caption{D5: test nRMSE (lower is better) against noise variance (0.00625, 0.0375, 0.0625 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d5_noise}
 \end{table}
@@ -754,7 +754,7 @@ With 1 bin the feature is constant and the linear model is at $0.630 \pm 0.233$;
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d6_bins/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d6_bins/polluted_test_nrmse.pdf}
 \caption{D6: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d6_bins_polluted_test_nrmse}
 \end{figure}
@@ -762,7 +762,7 @@ With 1 bin the feature is constant and the linear model is at $0.630 \pm 0.233$;
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d6_bins.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d6_bins.tex}}
 \caption{D6: test nRMSE (lower is better) against number of bins (1, 6, 10 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d6_bins}
 \end{table}
@@ -773,7 +773,7 @@ A random cell in the chosen rows is replaced by a random integer in $[0, 100)$, 
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{v3/d7_outliers/polluted_test_nrmse.pdf}
+\includegraphics[width=0.8\textwidth]{d7_outliers/polluted_test_nrmse.pdf}
 \caption{D7: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
 \label{fig:d7_outliers_polluted_test_nrmse}
 \end{figure}
@@ -781,7 +781,7 @@ A random cell in the chosen rows is replaced by a random integer in $[0, 100)$, 
 \begin{table}[htbp]
 \centering
 \small
-\resizebox{\textwidth}{!}{\input{Tables/v3/d7_outliers.tex}}
+\resizebox{\textwidth}{!}{\input{Tables/d7_outliers.tex}}
 \caption{D7: test nRMSE (lower is better) against fraction of rows with an outlier (0.0125, 0.075, 0.125 shown); mean $\pm$ SD over 3 seeds.}
 \label{tab:d7_outliers}
 \end{table}
@@ -809,7 +809,7 @@ A random cell in the chosen rows is replaced by a random integer in $[0, 100)$, 
     \item The data are synthetic with independent Gaussian features; the conclusion that simple imputers are equivalent depends on this and would not hold for correlated features.
     \item \texttt{MLPRegressor} and \texttt{LinearSVR} may report convergence warnings, which are recorded in the fold status and not suppressed.
     \item In C9 the groups of features share row sets with C7, and in C4 the missing-row sets of the columns are nested.
-    \item The figures and tables are generated from the saved results (\texttt{Plot/v3}) by \texttt{Report/\allowbreak tools/\allowbreak build\_\allowbreak v3\_\allowbreak assets.py}; they are only as current as the last notebook run.
+    \item The figures and tables are generated from the saved results (\texttt{Plot/results}) by \texttt{Report/\allowbreak tools/\allowbreak build\_\allowbreak assets.py}; they are only as current as the last notebook run.
     \item The tables show three points of each x axis; the complete series are in the figures and in the results files.
 \end{itemize}
 
