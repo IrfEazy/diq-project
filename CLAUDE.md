@@ -23,6 +23,22 @@ Convention: the v1 and v2 notebooks set `SEED = 2023` and seed `random` and `np.
 
 `.gitignore` ignores `**/*.pdf`, so new report figures or a rebuilt PDF must be added with `git add -f` to be tracked.
 
+## Regenerating v3 results and the report
+
+1. Run `completeness_v3.ipynb` and `distinctness_v3.ipynb` (full runs: about 95 and 50 minutes with `N_JOBS = 8` on 8 CPUs, dominated by the Gaussian process; set `DIQ_QUICK=1` for a smoke run). They overwrite `Plot/v3/results/*.json` and the figures in `Plot/v3/<exp_id>/`.
+2. `uv run --frozen python Report/tools/build_v3_assets.py` copies the selected figures and writes the tables into `Report/` (see `Report/CLAUDE.md`).
+3. Build the PDF as described in `Report/CLAUDE.md`.
+
+Scripts run from outside the repository root need the root on `sys.path` (for example `PYTHONPATH=.`), because `library` is not installed.
+
+## Working rules
+
+- Variants are compared, not overwritten. v1 is the original study and v2 is frozen; a change that alters results goes into a new variant (new notebooks and `library/vN/`, with a `CHANGES.md` saying what differs and why), then the results are compared. Which variant the report presents is the user's decision.
+- Before fixing a pre-existing bug, classify it: unused (fix freely, behaviour is unchanged) or exploited (results depend on it, so the fix belongs in a new variant and must be documented).
+- Use the latest mutually compatible library versions (`uv add`, `uv lock --upgrade`); do not pin old versions to reproduce old numbers. Explain differences instead: for example, the v1 Gaussian process results depend on the default kernel of scikit-learn <= 1.8 (see `library/v3/README.md`).
+- Claims about results must be read from the results JSON or the generated tables, never from memory or summaries. Check every number before writing it in the report or docs.
+- Check the theory behind an experiment (which data-quality dimension it really pollutes, which mechanism it simulates) before interpreting it. For example, the "paste an existing value" distinctness pollution is also a value-substitution (accuracy) error.
+
 ## Scoped guidance
 
 Loaded on demand, only when matching files are read or edited:
