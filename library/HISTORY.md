@@ -6,8 +6,8 @@ The original code (the first study: `library/my_functions.py`, `library/D_data_a
 evaluation-protocol variant that this directory flattens. Every result-changing difference is listed here, in two parts:
 what was wrong in the original code, then what the evaluation protocol changed.
 
-Findings referenced (F*, C*, D*) come from the run investigation `investigation/theory.md` and
-`investigation/differential.md` (Gaussian process root cause) of run 20261024T180844Z-0d73a8e3.
+Findings referenced (F*, C*, D*) come from an investigation of the original code whose findings are summarised in
+this document.
 
 ## Polluters (`pollution.py`) versus the original `my_functions.py`
 
@@ -95,5 +95,6 @@ The repository was later flattened to a single unversioned variant. That change 
 polluters in `pollution.py`, renamed the notebooks, changed the default output directory to `Plot/`, and replaced the
 payload field `version` by `schema_version: 1`. Results are unchanged: a quick run of both notebooks was compared
 record by record with the stored full results: data hashes, test hashes, metrics, status and sizes are identical. The only
-difference is the extra `requested_not_distinct_low` key in the `meta` of the polluted D8 records, which the notebook
-added after the stored full run; the stored file does not have it.
+difference was the extra `requested_not_distinct_low` key in the `meta` of the polluted D8 records. The stored D8
+results were then regenerated with the current code: hashes and metrics are identical and the records now include that
+meta key.
