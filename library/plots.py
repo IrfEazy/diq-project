@@ -1,11 +1,11 @@
-"""v3 figures built only from a results JSON (no model is rerun). See README.md."""
+"""Figures built only from a results JSON (no model is rerun). See README.md."""
 import os
 import re
 
 import matplotlib.pyplot as plt
 
 from library import evaluation as ev
-from library.runner import OUT_DIR, load_results, summarise
+from library.runner import load_results, out_dir_default, summarise
 
 BAND_LABEL = "mean +- SD over seeds (descriptive)"
 # Fixed categorical order (colour follows the entity, never its rank); markers are the secondary encoding.
@@ -56,12 +56,13 @@ def _finish(fig, ax, title, x_label, y_label, n_seeds, path):
     return path
 
 
-def plot_experiment(source, out_dir=OUT_DIR):
+def plot_experiment(source, out_dir=None):
     """
     Write all figures of one experiment from its results JSON (path or exp_id) into <out_dir>/<exp_id>/:
     per condition <condition>_<metric>.pdf for test_nrmse, gap and fit_time (one line per model), and per model
     model_<model>_test_nrmse.pdf comparing conditions. Returns the list of written paths.
     """
+    out_dir = out_dir or out_dir_default()
     payload = load_results(source, out_dir) if isinstance(source, str) else source
     x_axis, x_label = payload["x_axis"], payload["x_label"]
     model_order = list(ev.MODELS)

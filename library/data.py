@@ -1,4 +1,4 @@
-"""v3 data generation and duplicate-record pollution/cleaning (see README.md)."""
+"""Data generation and duplicate-record pollution/cleaning (see README.md)."""
 import numpy as np
 import pandas as pd
 from sklearn.datasets import make_regression

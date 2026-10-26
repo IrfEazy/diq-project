@@ -83,12 +83,12 @@ def check_fold_fitting():
 
 
 def check_missing():
-    """(2) fold-fitted mean imputation differs from the v2 scale-then-zero path; None raises on NaN."""
+    """(2) fold-fitted mean imputation differs from the original scale-then-zero path; None raises on NaN."""
     X, y, y_scale = make_regression_data(500, 3, 3, SEED)
     Xm = pol.pollute_data_mcar(X.copy(), 0.2, SEED)
     assert Xm.isna().to_numpy().any()
     new = ev.evaluate(Xm, y, "LinearRegressor", "mean", SEED, y_scale)
-    Z = StandardScaler().fit_transform(Xm)  # v2: scaler on all rows, then NaN -> 0
+    Z = StandardScaler().fit_transform(Xm)  # original: scaler on all rows, then NaN -> 0
     old_X = Xm.copy()
     old_X[:] = np.where(np.isnan(Z), 0.0, Z)
     old = ev.evaluate(old_X, y, "LinearRegressor", None, SEED, y_scale)
@@ -146,6 +146,25 @@ def check_runner(tmp):
         text = f.read()
     assert "NaN" not in text and "Infinity" not in text
     assert runner.load_results(path) == p2 == json.loads(json.dumps(p2, allow_nan=False))
+    assert p2["schema_version"] == 1 and "version" not in p2
+    bad = os.path.join(tmp, "bad_schema.json")
+    with open(bad, "w") as f:
+        json.dump({**p2, "schema_version": 2}, f)
+    try:
+        runner.load_results(bad)
+        raise AssertionError("load_results accepted an unsupported schema_version")
+    except ValueError as err:
+        assert "schema_version" in str(err)
+    previous = os.environ.get("DIQ_OUT_DIR")
+    os.environ["DIQ_OUT_DIR"] = tmp
+    try:
+        assert runner.results_path("x") == os.path.join(tmp, "results", "x.json")
+        assert runner.load_results("selfcheck") == p2
+    finally:
+        if previous is None:
+            del os.environ["DIQ_OUT_DIR"]
+        else:
+            os.environ["DIQ_OUT_DIR"] = previous
     assert runner.to_strict({"a": [np.float64("nan"), np.inf, np.int64(3)]}) == {"a": [None, None, 3]}
     # plots from the JSON alone: building any estimator now is an error
     original = ev.make_estimator
@@ -236,7 +255,7 @@ def _make_data_x(seed, x):
 
 
 def _pollute_none(X, y, x, seed):
-    np.random.seed(7)  # legacy polluters mutate the global RNG; the runner must restore it
+    np.random.seed(7)  # the polluters mutate the global RNG; the runner must restore it
     return X, y, {}
 
 

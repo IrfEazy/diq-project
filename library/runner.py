@@ -1,4 +1,4 @@
-"""v3 experiment runner and results JSON (see README.md)."""
+"""Experiment runner and results JSON (see README.md)."""
 import hashlib
 import inspect
 import json
@@ -17,8 +17,15 @@ from threadpoolctl import threadpool_limits
 from library import evaluation as ev
 from library.data import realised_meta
 
-OUT_DIR = "Plot/v3"
+DEFAULT_OUT_DIR = "Plot"
+OUT_DIR_ENV = "DIQ_OUT_DIR"
 DEFAULT_NOISE_RATIO = 0.2
+SCHEMA_VERSION = 1
+
+
+def out_dir_default():
+    """Output directory: the DIQ_OUT_DIR environment variable (read at call time) or 'Plot'."""
+    return os.environ.get(OUT_DIR_ENV) or DEFAULT_OUT_DIR
 
 
 def resolve_condition(name):
@@ -68,7 +75,7 @@ def _polluted(make_data, pollute, seed, x, condition):
     X, y, y_scale = make_data(seeds["data"], x) if takes_x(make_data) else make_data(seeds["data"])
     meta, groups = {}, None
     if resolve_condition(condition)["polluted"]:
-        # Legacy polluters seed the global numpy RNG; keep the caller's state untouched (n_jobs=1 runs in-process).
+        # The polluters seed the global numpy RNG; keep the caller's state untouched (n_jobs=1 runs in-process).
         state = np.random.get_state()
         try:
             out = pollute(X.copy(), np.array(y, copy=True), x, seeds["pollute"])
@@ -103,7 +110,7 @@ def _skip(model, condition):
 
 
 def run_experiment(exp_id, title, x_label, x_axis, make_data, pollute, models, conditions, seeds, n_jobs=1,
-                   n_splits=ev.N_SPLITS, test_size=ev.TEST_SIZE, config=None, out_dir=OUT_DIR):
+                   n_splits=ev.N_SPLITS, test_size=ev.TEST_SIZE, config=None, out_dir=None):
     """
     Run every (seed, x, condition, model) task in parallel and write <out_dir>/results/<exp_id>.json.
 
@@ -112,6 +119,7 @@ def run_experiment(exp_id, title, x_label, x_axis, make_data, pollute, models, c
     sample-size or shape axes. Otherwise 'clean' is fitted once per (seed, model) and reused for every x (records
     carry reused_from_x), which requires pollute to keep the number of rows; a mismatch raises. Returns the results payload (also written to disk; see results_path / load_results).
     """
+    out_dir = out_dir or out_dir_default()
     for c in conditions:
         resolve_condition(c)
     # Unpolluted conditions do not depend on x when make_data ignores x: fit them once per (seed, model).
@@ -145,7 +153,7 @@ def run_experiment(exp_id, title, x_label, x_axis, make_data, pollute, models, c
                 f"pollute changed the number of rows for x={bad} (seed {s}) but 'clean' was fitted once on the "
                 f"unpolluted data; define make_data(seed, x) to generate the data per x, or drop 'clean'")
     payload = {
-        "version": "v3",
+        "schema_version": SCHEMA_VERSION,
         "exp_id": exp_id,
         "title": title,
         "x_label": x_label,
@@ -187,7 +195,8 @@ def to_strict(obj):
     return obj
 
 
-def results_path(exp_id, out_dir=OUT_DIR):
+def results_path(exp_id, out_dir=None):
+    out_dir = out_dir or out_dir_default()
     return os.path.join(out_dir, "results", f"{exp_id}.json")
 
 
@@ -195,11 +204,18 @@ def _reject_constant(name):
     raise ValueError(f"non-strict JSON constant {name}")
 
 
-def load_results(path_or_exp_id, out_dir=OUT_DIR):
-    """Load a results payload from a path or an exp_id (strict JSON: NaN/Infinity are rejected)."""
+def load_results(path_or_exp_id, out_dir=None):
+    """
+    Load a results payload from a path or an exp_id (strict JSON: NaN/Infinity are rejected).
+    Only files with schema_version == 1 are accepted.
+    """
     path = path_or_exp_id if path_or_exp_id.endswith(".json") else results_path(path_or_exp_id, out_dir)
     with open(path) as f:
-        return json.load(f, parse_constant=_reject_constant)
+        payload = json.load(f, parse_constant=_reject_constant)
+    if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
+        found = payload.get("schema_version") if isinstance(payload, dict) else None
+        raise ValueError(f"{path}: unsupported results schema_version {found!r} (expected {SCHEMA_VERSION})")
+    return payload
 
 
 def records_frame(payload):

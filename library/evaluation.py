@@ -1,5 +1,5 @@
 """
-v3 evaluation protocol (see README.md).
+Evaluation protocol (see README.md).
 
 Per fold: TransformedTargetRegressor(Pipeline([imputer], StandardScaler, [finite check], model),
 transformer=StandardScaler()), fitted on the training fold only. Metrics are in target units:
