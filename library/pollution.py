@@ -352,4 +352,3 @@ def pollute_data_mnar(data, feature_mnar, seed=2023, q_low=0.25, q_high=0.75):
 
     assert (data[feature_mnar].isna().to_numpy() == (previous_nan | mask)).all(), "MNAR NaN pattern mismatch"
     return data
-
