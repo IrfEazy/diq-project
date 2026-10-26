@@ -20,7 +20,7 @@ Notebooks take an explicit `SEEDS` list. `.gitignore` ignores `**/*.pdf`, so new
 ## Regenerating results and the report
 
 1. Run `completeness.ipynb` and `distinctness.ipynb` (full runs: about 95 and 50 minutes with `N_JOBS = 8` on 8 CPUs, dominated by the Gaussian process; set `DIQ_QUICK=1` for a smoke run, with `DIQ_OUT_DIR` pointing to a scratch directory). They overwrite `Plot/results/*.json` and the figures in `Plot/<exp_id>/`.
-2. Run the asset builder in `Report/tools/` to copy the selected figures and write the tables into `Report/` (see `Report/CLAUDE.md`; it still has to be adapted to the flattened layout).
+2. `uv run --frozen python Report/tools/build_assets.py` copies the selected figures and writes the tables into `Report/` (see `Report/CLAUDE.md`).
 3. Build the PDF as described in `Report/CLAUDE.md`.
 
 Scripts run from outside the repository root need the root on `sys.path` (for example `PYTHONPATH=.`), because `library` is not installed.
