@@ -14,8 +14,8 @@ import sklearn
 from joblib import Parallel, delayed
 from threadpoolctl import threadpool_limits
 
-from library.v3 import evaluation as ev
-from library.v3.data import realised_meta
+from library import evaluation as ev
+from library.data import realised_meta
 
 OUT_DIR = "Plot/v3"
 DEFAULT_NOISE_RATIO = 0.2

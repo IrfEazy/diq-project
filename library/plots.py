@@ -4,8 +4,8 @@ import re
 
 import matplotlib.pyplot as plt
 
-from library.v3 import evaluation as ev
-from library.v3.runner import OUT_DIR, load_results, summarise
+from library import evaluation as ev
+from library.runner import OUT_DIR, load_results, summarise
 
 BAND_LABEL = "mean +- SD over seeds (descriptive)"
 # Fixed categorical order (colour follows the entity, never its rank); markers are the secondary encoding.

@@ -27,7 +27,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVR
 
-from library.v3.data import deduplicate
+from library.data import deduplicate
 
 N_SPLITS = 5
 TEST_SIZE = 0.3

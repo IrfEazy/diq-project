@@ -1,4 +1,4 @@
-"""Protocol invariant checks for library.v3. Run: uv run --frozen python -m library.v3.selfcheck"""
+"""Protocol invariant checks for library. Run: uv run --frozen python -m library.selfcheck"""
 import json
 import os
 import tempfile
@@ -13,10 +13,10 @@ from sklearn.model_selection import ShuffleSplit
 from sklearn.preprocessing import StandardScaler
 from threadpoolctl import threadpool_limits
 
-from library.v2 import my_functions as mf
-from library.v3 import evaluation as ev
-from library.v3 import plots, runner
-from library.v3.data import deduplicate, make_regression_data, pollute_duplicates
+from library import evaluation as ev
+from library import plots, runner
+from library import pollution as pol
+from library.data import deduplicate, make_regression_data, pollute_duplicates
 
 SEED = 2023
 
@@ -85,7 +85,7 @@ def check_fold_fitting():
 def check_missing():
     """(2) fold-fitted mean imputation differs from the v2 scale-then-zero path; None raises on NaN."""
     X, y, y_scale = make_regression_data(500, 3, 3, SEED)
-    Xm = mf.pollute_data_mcar(X.copy(), 0.2, SEED)
+    Xm = pol.pollute_data_mcar(X.copy(), 0.2, SEED)
     assert Xm.isna().to_numpy().any()
     new = ev.evaluate(Xm, y, "LinearRegressor", "mean", SEED, y_scale)
     Z = StandardScaler().fit_transform(Xm)  # v2: scaler on all rows, then NaN -> 0
@@ -117,7 +117,7 @@ def _make_data(seed):
 
 
 def _pollute_mcar(X, y, x, seed):
-    return mf.pollute_data_mcar(X, x, seed), y, {"requested_rate": x}
+    return pol.pollute_data_mcar(X, x, seed), y, {"requested_rate": x}
 
 
 def check_runner(tmp):
@@ -185,7 +185,7 @@ def check_duplicates():
 def check_gp():
     """(8) GP on a heavily tied dataset does not collapse to the mean predictor."""
     X, y, y_scale = make_regression_data(1000, 3, 3, SEED)
-    Xt = mf.pollution_eighth_experiment(X, 0.5, SEED)
+    Xt = pol.pollution_eighth_experiment(X, 0.5, SEED)
     gp = ev.evaluate(Xt, y, "GPRegressor", None, SEED, y_scale, n_splits=1)[0]
     ridge = ev.evaluate(Xt, y, "LinearRegressor", None, SEED, y_scale, n_splits=1)[0]
     assert gp["test_nrmse"] < 0.95 and abs(gp["test_nrmse"] - ridge["test_nrmse"]) < 0.03, (gp, ridge)
