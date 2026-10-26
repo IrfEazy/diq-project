@@ -295,7 +295,7 @@ The original notebooks (v1) and the faithful repair (v2) are kept in the reposit
     \item \textbf{Constants instead of NaN.} The ``less informative'' and ``most informative'' experiments wrote a constant value, not a missing value, and the incremental experiment made four of five features entirely missing.
     \item \textbf{Sample-size axes too narrow.} The axes 1000--1090 rows cannot show a size effect. v3 uses 100--1000.
     \item \textbf{Distinctness target not reached,} one fixed column polluted, and noise variance used as standard deviation.
-    \item \textbf{Gaussian process collapse} on unscaled targets with default settings (\Cref{sec:gp}); the data were noise free, a single seed was used, and no clean reference was reported.
+    \item \textbf{Gaussian process collapse} which depended on scikit-learn's default kernel (\Cref{sec:gp}): in the original environment (scikit-learn $\le 1.8$) the default \texttt{GaussianProcessRegressor()} used fixed hyperparameters, so no optimisation ran and the model was a near noise-free RBF interpolator ($\alpha=10^{-10}$) with an ill-conditioned kernel matrix, and on polluted data the predictions exploded (errors in the thousands); from scikit-learn 1.9 the default kernel is optimised and, with the default length-scale bounds $(10^{-5},10^{5})$, converges to the length scale $10^{-5}$, i.e. the mean predictor. A \texttt{WhiteKernel} (v2) still collapsed on heavily tied data and restarts did not help; v3 sets the lower length-scale bound to $0.1$ in standardised units. The data were noise free, a single seed was used, and no clean reference was reported.
 \end{itemize}
 The corrections are listed in \texttt{library/v2/CHANGES.md} (faithful repair of the polluters) and \texttt{library/v3/CHANGES.md} (evaluation protocol). For the original conclusions the audit gives the following verdicts, checked against the v3 results.
 \begin{itemize}
@@ -420,7 +420,7 @@ The same setting at 27.5\%--50\% missing cells (\texttt{most\_frequent} and \tex
 
 \subsection{C4: incremental MCAR per feature with growing sample size}
 \label{sec:c04_incremental}
-Column $i$ loses $10 i$\% of its cells (5 features, 3 informative) while $n$ grows. The linear model with mean imputation gives $0.428 \pm 0.179$, $0.439 \pm 0.152$ and $0.525 \pm 0.097$ at $n=100$, $600$, $1000$, against $0.188$, $0.198$ and $0.200$ for the clean data. There is no clear trend with $n$ and the SD over seeds is large (up to $0.179$). The boosting model shows the same absence of a trend ($0.668$, $0.512$, $0.586$ with \texttt{mean}). The polluter uses the same seed for every column, so the missing-row sets are nested; this is kept and listed as a limitation.
+Column $i$ loses $10 i$\% of its cells (5 features, 3 informative) while $n$ grows. The linear model with mean imputation gives $0.428 \pm 0.179$, $0.439 \pm 0.152$ and $0.525 \pm 0.097$ at $n=100$, $600$, $1000$, against $0.188$, $0.198$ and $0.200$ for the clean data. There is no reliable trend with $n$ given the SD over seeds, which is large (up to $0.179$). The boosting model shows the same absence of a trend ($0.668$, $0.512$, $0.586$ with \texttt{mean}). The polluter uses the same seed for every column, so the missing-row sets are nested; this is kept and listed as a limitation.
 
 \begin{figure}[htbp]
 \centering
@@ -439,7 +439,7 @@ Column $i$ loses $10 i$\% of its cells (5 features, 3 informative) while $n$ gro
 
 \subsection{C5: MAR}
 \label{sec:c05_mar}
-Feature 2 is removed where feature 1 exceeds its $(1-x)$ quantile, so the realised rate is $x$ and depends only on an observed value. The effect is mild compared with MCAR on all features: the mean-imputed linear model gives $0.217 \pm 0.023$, $0.269 \pm 0.085$ and $0.309 \pm 0.128$ at 5\%, 30\% and 50\% (clean $0.199$). \texttt{median}, \texttt{iterative} and \texttt{mean\_indicator} are indistinguishable from \texttt{mean} (for example $0.309$, $0.309$ and $0.310$ at 50\%). The SD over seeds grows with the rate, so the seeds disagree on how harmful the mechanism is. Native boosting gives $0.263$, $0.320$, $0.362$.
+Feature 2 is removed where feature 1 exceeds its $(1-x)$ quantile, so the realised rate is $x$ and depends only on an observed value. The effect is mild at the tested rates, but only one column is affected, so this is not a like-for-like comparison with MCAR on all features (C1, C2); the closest one-column reference is C3. The mean-imputed linear model gives $0.217 \pm 0.023$, $0.269 \pm 0.085$ and $0.309 \pm 0.128$ at 5\%, 30\% and 50\% (clean $0.199$). \texttt{median}, \texttt{iterative} and \texttt{mean\_indicator} are indistinguishable from \texttt{mean} (for example $0.309$, $0.309$ and $0.310$ at 50\%). The SD over seeds grows with the rate, so the seeds disagree on how harmful the mechanism is. Native boosting gives $0.263$, $0.320$, $0.362$.
 
 \begin{figure}[htbp]
 \centering
@@ -458,7 +458,7 @@ Feature 2 is removed where feature 1 exceeds its $(1-x)$ quantile, so the realis
 
 \subsection{C6: MNAR upper tail (self-masking)}
 \label{sec:c06_mnar}
-Feature 1 is removed when its own value exceeds its $(1-x)$ quantile, so the largest values vanish. Here the imputer matters. Mean imputation of the linear model gives $0.422 \pm 0.048$, $0.664 \pm 0.092$ and $0.740 \pm 0.112$, and \texttt{iterative} imputation is identical ($0.422$, $0.664$, $0.740$): both place the missing values at the centre of the observed (truncated) distribution and are biased. Adding the missing-value indicator recovers a large part of the loss ($0.206 \pm 0.003$, $0.301 \pm 0.024$, $0.388 \pm 0.041$), because the indicator tells the model that the value was in the upper tail. The native boosting model behaves like the indicator variant ($0.257$, $0.350$, $0.443$) and is better than its mean-imputed version ($0.292$, $0.358$, $0.452$).
+Feature 1 is removed when its own value exceeds its $(1-x)$ quantile, so the largest values vanish. Here the imputer matters. Mean imputation of the linear model gives $0.422 \pm 0.048$, $0.664 \pm 0.092$ and $0.740 \pm 0.112$, and \texttt{iterative} imputation is identical ($0.422$, $0.664$, $0.740$): both place the missing values at the centre of the observed (truncated) distribution and are biased. Adding the missing-value indicator recovers a large part of the loss ($0.206 \pm 0.003$, $0.301 \pm 0.024$, $0.388 \pm 0.041$), because the indicator tells the model that the value was in the upper tail. The native boosting model behaves like the indicator variant ($0.257$, $0.350$, $0.443$) and is better than its mean-imputed version at 5\% ($0.292$) but similar at 30\% and 50\% ($0.358$, $0.452$), within one SD.
 
 \begin{figure}[htbp]
 \centering
@@ -541,7 +541,7 @@ Both sets (the 3 most and the 3 least important features, ranked once on the cle
 
 \subsection{C10: MCAR on all features combined with MNAR on one feature}
 \label{sec:c10_mcar_mnar}
-All 10 features lose a share $x$ of their cells at random and feature 0 additionally loses its upper-tail 25\%. The mean-imputed linear model gives $0.346 \pm 0.042$, $0.595 \pm 0.032$, $0.748 \pm 0.012$. The indicator helps at 5\% ($0.310 \pm 0.014$) but not at higher rates ($0.589$ at 30\%, $0.749$ at 50\%), where the MCAR component dominates. \texttt{iterative} imputation is clearly worse at 50\% ($0.877 \pm 0.020$). Boosting is similar to mean imputation with native NaN handling ($0.435$, $0.687$, $0.841$).
+All 10 features lose a share $x$ of their cells at random and feature 0 additionally loses its upper-tail 25\%. The mean-imputed linear model gives $0.346 \pm 0.042$, $0.595 \pm 0.032$, $0.748 \pm 0.012$. The indicator helps at 5\% ($0.310 \pm 0.014$) but not at higher rates ($0.589$ at 30\%, $0.749$ at 50\%), presumably because the MCAR component dominates. Note that feature 0 has a realised missing rate of about $0.25+0.75x$ ($0.29$ at 5\%, $0.63$ at 50\%), so the rate axis is not the missing rate of feature 0. \texttt{iterative} imputation is clearly worse at 50\% ($0.877 \pm 0.020$). Boosting is similar to mean imputation with native NaN handling ($0.435$, $0.687$, $0.841$).
 
 \begin{figure}[htbp]
 \centering
@@ -589,7 +589,7 @@ One random feature of 3 loses distinct values. The polluted linear model rises f
 
 \subsection{D2: mid-low distinctness}
 \label{sec:d2_mid_low}
-From 50\% to 100\% the linear model goes $0.271 \pm 0.038$, $0.282 \pm 0.045$, $0.282 \pm 0.045$: the curve saturates, and at 100\% the column is constant, so the models effectively lose one feature. The difference between seeds ($\pm 0.045$) reflects which random feature was polluted.
+From 50\% to 100\% the linear model goes $0.271 \pm 0.038$, $0.282 \pm 0.045$, $0.282 \pm 0.045$: the curve saturates, and at 100\% the column is constant, so the models effectively lose one feature. The difference between seeds ($\pm 0.045$) presumably reflects which random feature was polluted.
 
 \begin{figure}[htbp]
 \centering
@@ -608,7 +608,7 @@ From 50\% to 100\% the linear model goes $0.271 \pm 0.038$, $0.282 \pm 0.045$, $
 
 \subsection{D3: fixed distinctness, increasing sample size}
 \label{sec:d3_fixed_n}
-With a fixed 20\% of non-distinct values in one random feature, the linear model gives $0.412 \pm 0.102$, $0.514 \pm 0.052$ and $0.232 \pm 0.015$ at $n=100$, 600 and 1000 (clean $0.188$, $0.197$, $0.199$). There is no monotone size trend and the SD over seeds is large; the experiment mainly shows seed-to-seed variance (which feature is polluted, which values are pasted) and not a sample-size effect.
+With a fixed 20\% of non-distinct values in one random feature, the linear model gives $0.412 \pm 0.102$, $0.514 \pm 0.052$ and $0.232 \pm 0.015$ at $n=100$, 600 and 1000 (clean $0.188$, $0.197$, $0.199$). There is no monotone size trend, and the variation is mainly between the values of $n$ rather than between seeds (the SD over seeds is moderate and falls with $n$). In this experiment the data are regenerated for each $n$ (\texttt{make\_data(seed, x)}), so each $n$ has different coefficients and the pollution presumably hits a different column; the curve therefore presumably reflects which feature is polluted and its weight, not the sample size. The realised distinct fraction is $0.8$ at every $n$. This explanation was not tested separately.
 
 \begin{figure}[htbp]
 \centering
@@ -769,7 +769,7 @@ With 1 bin the feature is constant and the linear model is at $0.630 \pm 0.233$;
 
 \subsection{D7: outliers (validity)}
 \label{sec:d7_outliers}
-A random cell in the chosen rows is replaced by a random integer in $[0, 100)$ on standardised features, an extreme contamination. The linear model, BayesianRidge and \texttt{LinearSVR} fail: $1.256 \pm 0.305$, $0.992$ and $0.996$ for the linear model, $2.397 \pm 0.189$ at 1.25\% for \texttt{LinearSVR}, i.e. no better than (or worse than) a mean predictor. The Gaussian process ($0.242$, $0.376$, $0.452$) and \texttt{KNeighborsRegressor} ($0.315$, $0.399$, $0.479$) degrade gracefully, and the MLP lies in between ($0.527 \pm 0.229$, $0.337$, $0.399$).
+A random cell in the chosen rows is replaced by a random integer in $[0, 100)$, up to about 100 standard deviations of the Gaussian features, an extreme contamination. The linear model, BayesianRidge and \texttt{LinearSVR} fail: $1.256 \pm 0.305$, $0.992$ and $0.996$ for the linear model, $2.397 \pm 0.189$ at 1.25\% for \texttt{LinearSVR}, i.e. no better than (or worse than) a mean predictor. The Gaussian process ($0.242$, $0.376$, $0.452$) and \texttt{KNeighborsRegressor} ($0.315$, $0.399$, $0.479$) degrade gracefully, and the MLP lies in between ($0.527 \pm 0.229$, $0.337$, $0.399$).
 
 \begin{figure}[htbp]
 \centering
@@ -794,12 +794,12 @@ A random cell in the chosen rows is replaced by a random integer in $[0, 100)$ o
 \begin{itemize}
     \item \textbf{MCAR.} Mean, median, iterative and mean-plus-indicator imputation are equivalent because the features are independent and the other columns carry no information about the missing one (\Cref{tab:c01_mcar_low,tab:c02_mcar_high}). \texttt{most\_frequent} is degenerate, \texttt{std\_constant} is clearly worse, and \texttt{knn} is slightly worse. The error grows steadily with the missing rate.
     \item \textbf{Only informative features matter.} Missing values in noise features leave the error at the clean level (C3 rank 5 and 9, C8), while the same rate in informative features is costly (C3 rank 0, C7, C9). D10 shows the same for distinctness.
-    \item \textbf{MAR} is mild at the rates tested (\Cref{tab:c05_mar}) with a large spread between seeds.
+    \item \textbf{MAR} is mild at the rates tested (\Cref{tab:c05_mar}), though only one column is affected so this is not like-for-like with MCAR on all features, with a large spread between seeds.
     \item \textbf{MNAR.} Mean and iterative imputation are biased; the missing-value indicator recovers a large part of the loss and the native boosting model behaves similarly (\Cref{tab:c06_mnar}). In the combined MCAR plus MNAR setting the advantage of the indicator disappears at high rates (\Cref{tab:c10_mcar_mnar}).
     \item \textbf{Duplicates} do not hurt the linear model with group-aware splits; \texttt{KNeighborsRegressor} is slightly affected and deduplication of the training fold removes the effect, while a naive split inflates the apparent performance of \texttt{KNeighborsRegressor} (\Cref{tab:d11_duplicates}).
     \item \textbf{Outliers} break the linear model, BayesianRidge and \texttt{LinearSVR}, which fall to or below the level of a mean predictor, while the Gaussian process and \texttt{KNeighborsRegressor} are more robust (\Cref{tab:d7_outliers}). Noise and binning degrade all models smoothly (D5, D6).
-    \item \textbf{Substitution.} Pasting a value into a column behaves as an accuracy error: the effect scales with feature importance and saturates (D1, D2, D8, D9).
-    \item \textbf{Sample size.} The sample-size experiments with pollution (C4, D3) show no size trend and a large seed variance; only the clean learning curve (C0) shows a size effect, mainly for \texttt{KNeighborsRegressor}.
+    \item \textbf{Substitution.} Pasting a value into a column behaves as an accuracy error: the effect scales with feature importance and saturates (D1, D2; D8 is near the ceiling).
+    \item \textbf{Sample size.} The sample-size experiments with pollution (C4, D3) show no consistent size trend (C4 with a large seed variance, D3 with variation between $n$ values that presumably reflects which feature is polluted); only the clean learning curve (C0) shows a size effect, mainly for \texttt{KNeighborsRegressor}.
 \end{itemize}
 
 \section{Limitations}
