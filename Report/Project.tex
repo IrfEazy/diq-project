@@ -198,273 +198,630 @@
 
 \section{Problem description}
 \label{sec:section_1_1}%
-In this problem, we are tasked with investigating data quality issues, specifically focusing on completeness and distinctness, within a regression problem. The dataset is initially generated using the \verb|make_dataset_regression()| function from the \verb|scikit-learn| library. Subsequently, errors related to completeness and distinctness are intentionally introduced, creating pollution within the dataset. The primary objective is to address these issues and then evaluate their impact on the regression problem.
+This report studies how two data quality issues, completeness and distinctness, affect a regression task. The data are synthetic: a regression dataset is generated, errors are injected on purpose (``pollution''), the polluted data are handled by simple cleaning steps where this makes sense, and the effect on the prediction error is measured. The report presents the third version (v3) of the study. The original experiments and a faithful repair of them (v2) remain in the repository for comparison, and \Cref{sec:differences} explains why v3 was needed and which original conclusions survive.
+
+\section{Data quality dimensions}
+\label{sec:dimensions}%
+Following \citet{batini2016}, \emph{completeness} is the extent to which the data contain all the values that should be present, and in a table it is measured through the share of missing values. \emph{Distinctness} (or uniqueness) is the absence of repetition: at record level it concerns duplicate records referring to the same entity, and at column level it is the ratio between the number of distinct values and the number of rows. The original study reduced the column-level ratio; v3 additionally studies duplicate records, which is the more standard meaning of the dimension.
+
+\section{Machine learning task and models}
+\label{sec:models}%
+The task is regression on a numeric target. All models are taken from \texttt{scikit-learn} \citep{pedregosa2011}. The six study models are:
+\begin{itemize}
+    \item \texttt{LinearRegressor}: a Ridge regression with the default penalty (the label of the original study is kept);
+    \item \texttt{BayesianRidge};
+    \item \texttt{GaussianProcessRegressor} (labelled \texttt{GPRegressor} in the tables), with a constant times RBF plus white-noise kernel \citep{rasmussen2006};
+    \item \texttt{LinearSVR} (labelled \texttt{SVMRegressor});
+    \item \texttt{KNeighborsRegressor} (labelled \texttt{KNNRegressor});
+    \item \texttt{MLPRegressor}.
+\end{itemize}
+In the completeness experiments only, \texttt{HistGradientBoostingRegressor} (labelled \texttt{HGBRegressor}) is added as a reference model. It handles missing values natively, so it shows what is achievable without imputation. It is not one of the six study models and it is never counted as an imputation method.
+
+The error measure is the normalised RMSE, $\mathrm{nRMSE} = \mathrm{RMSE} / \mathrm{std}(y)$, where $y$ is the clean target. A value of 1 corresponds to a predictor that always outputs the mean of the target, and the irreducible noise of the data sets a floor of about $0.2$ (see \Cref{sec:data}).
 
 \chapter{Setup choices}
 \label{ch:chapter_2}%
 
-\section{Completeness}
-\label{sec:section_2_1}%
-In the context of data completeness in a regression problem, completeness refers to the extent to which the dataset is free from missing values. Missing values can significantly impact the performance and reliability of regression models, so it's crucial to explore different scenarios and distributions of missing values. 
+\section{Data generation}
+\label{sec:data}%
+The data come from \texttt{make\_regression} of \texttt{scikit-learn} with Gaussian features. The target is the signal plus Gaussian noise whose standard deviation is $0.2$ times the standard deviation of the signal. The clean nRMSE of a correct model therefore cannot go below about $0.2$, which gives a known reference (the original data were noise free, so the clean error was almost zero and a pollution effect could not be compared with an irreducible error). The shapes used in the notebooks are: 1000 rows and 3 informative features for most experiments; 10 features of which 5 informative for C3 and 10 informative features for C10; 5 features with 3 informative for C4; 9 features with 4 informative for C7--C9 and D4, D9, D10. Experiments with a sample-size axis (C0, C4, D3) regenerate the data for every size from 100 to 1000 rows. All features are independent, which matters for the interpretation of the results.
 
-\subsection{Data collection phase}
-\label{subsec:section_2_1_1}%
-The data was not collected from external sources or loaded from a file, because the problem uses some artificial created dataset. To create the dataset we use the \verb|sklearn| function \verb|make_dataset_for_regression| creating 1000 or more samples, in some experiments an increasing number of samples, until 2000 data points. We start with a set in which we consider 3 features and all of them informative, a target, and we have no noise and no bias in the creation of the data and we select a random seed in order to have reproducible data.
+\section{Missingness mechanisms}
+\label{sec:mechanisms}%
+Following \citet{rubin1976} and \citet{littlerubin2019}, a value can be missing completely at random (MCAR), at random (MAR) or not at random (MNAR):
+\begin{itemize}
+    \item \textbf{MCAR}: the probability that a value is missing does not depend on any data. Here each cell is removed independently with the requested probability.
+    \item \textbf{MAR}: the probability of missingness depends only on observed values. Here feature 2 is removed where feature 1 is above its $(1-x)$ quantile, so the rate is $x$ and driven by an observed feature.
+    \item \textbf{MNAR}: the probability of missingness depends on the missing value itself. Here a feature is removed when its own value exceeds its $(1-x)$ quantile (self-masking of the upper tail).
+\end{itemize}
 
-\subsection{Experiments on completeness}
-\label{subsec:section_2_1_2}%
-The experiments we decided to perform are the following:
-\begin{enumerate}
-\item[0.] \textbf{Baseline with complete data}: We decided to consider also a baseline with complete data in order to see how much the pollution experiments worsen the behavior of the models, understanding their changes also in comparison with a ideal state. 
-\item[1.] \textbf{Low percentage of values MCAR and different imputations}: In this experiment with a pollution function we generate a random mask randomly, in order to create some missing incompleteness in the DataFrame, of a chosen maximum percentage value. In this case we want to analyze the behavior of the models in case of a low percentage of MCAR, so in the experiment we use a percentage range that goes from 0.025 to 0.25 with a step of 0.025. Without any data imputation we got some expected results, that represent the fact that with the increasing percentage of MCAR values the performance on the train test gets worse, having an increase of the RMSE, especially in the GPRegressor, that behaves worst than the other algorithms. We can also see that this last model is the one that also overfits the most, while the others are pretty much stable, having some increasing behavior, but of a small range, in the KNNRegressor. Trying different imputations we observed that:
-\begin{enumerate}
-    \item Imputing the median: the behavior remains the same as in case of no imputation, but the no imputation case is actually a constant imputation of '0', because otherwise the algorithms wouldn't work, not accepting null values; so we can say that the imputation of the median behaves almost as the imputation of the constant value '0', with really small improvements in some error growth, but not an important one
-    \item Imputing the mean: the behavior is almost the same in all the models, with little, non important changes
-    \item Imputing the most frequent value: we have some different behaviors for the models, but in general this kind of imputation seems to worsen the behavior of all algorithms, comparing it with the imputation of the constant value '0'
-    \item Imputing the standard deviation: this type of imputation performs really good with the GPRegressor with respect to the previous cases, but it worsens the RMSE growth in all the other experiments, having a bigger error since the lowest MCAR values until the last percentage. It improves the GPRegressor not only regarding the train performance, but also reducing a lot the overfitting, having a better prediction 
-    \item Imputing with the KNN or the Linear Regressor: the behavior is the same as in case of imputing the standard deviation, with really small differences in the trends, nothing relevant that could distinguish this imputation for the others
-\end{enumerate}
-Seeing the behaviors with the different imputations techniques, we can conclude that they don't give big results in this case, having an artificial dataset with 3 features, all of them important. Given the fact that we didn't see important improvements with more complex imputations we will use in the following experiments always the median imputation, in order to see how it behaves in different conditions, changing also the feature's importance and the degree of incompleteness. 
-\item[2.] \textbf{High percentage of values MCAR}: Exactly like before we performed some experiments on MCAR, with different percentages, trying in this case to analyse more incomplete data with a range that goes from 0.275 to 0.50, maintaining the same setting of three features and all of them considered informative ones. As before in the models we can see an increase in the RMSE in correspondence of the increasing percentage of missing values, but in this case we have a different behavior for the GPRegressor, that instead with a high percentage of MCAR values starts to decrease its RMSE, but nonetheless its performance in the training remains the worst, having a big magnitude difference with the other ones; and also in the distance between train and test performance this is the model that performs worst. The others remain pretty much stable looking at the regression distance train-test. After imputing the median to clean the data in this case the GPRegressor has a even worse behavior in the performance while the others remain almost the same.
-\item[3.] \textbf{Fixed MCAR for different features in the dataset}: In this case we increased the number of features present in the dataset in order to have a broader experiment on the MCAR for different features. So we chose to create a dataset with 10 features, from which only 5 are considered informative, in order to explore different behaviors and see how much this could impact the model. In general the RMSE and the distance between train and test is stable, so it doesn't change so much from a feature to the other. We have some features that seem to affect more the behavior of the algorithms, and
-seeing some different behaviors in the results we can imagine that the different importance of the feature influenced the algorithm and this is why we decided to make further analyses on important and not important features in some of the next experiments. Also in this case in the cleaning phase the median doesn't change much the behavior, unfortunately it seems to worsen some behaviors, again the one of the GPRegressor.
-\item[4.] \textbf{Different percentages of values MCAR for each feature in an increasing dataset}: in this experiment polluting with MCAR values for each feature in an incremental way, also in an incrementing dataset, we see some strange behaviors, that cannot be smoother by the imputation of the median, and we can't retrieve much information from these patterns, so we conclude that there are too many variables and randomness in this experiment, so we have to make more precise and focused experiments, varying only some aspects each time. Also we can imagine that the increasing data try to balance the increasing MCAR, having opposing components that create the erratic trend.
-\item[5.] \textbf{MAR in an increasing dataset}: As in the MCAR experiment we generate a random mask, now for incompleteness (MAR) and introduce NaN values in the DataFrame according to the generated mask. We introduce missing values in a way that depends on the values of other specific features and simulate a non-random incompleteness pattern based on the values of certain features. In this case based on the \verb|feature_referenced| and \verb|feature_dependent| chosen, the features 1 and 2, if the \verb|feature_referenced| has some values above 100, in the correspondent element in the \verb|feature_dependent| we put a NaN value, creating a MAR incompleteness. As before from the results we see an oscillating behavior, so we can say that the MAR influences negatively the model, but the increasing of samples in the dataset tries to balance this effect, and limiting in some sense the RMSE. In this case we can notice that the Linear Regressor and the Bayesian Ridge are almost not influenced by the null values in the dataset, having the best behavior, with a RMSE almost equal to zero and no different between training and testing, not overfitting the dataset; but also in this case the imputation of the median doesn't help much the algorithms to improve their behavior.
-\item[6.] \textbf{MNAR in an increasing dataset}: In this case we generate a random mask for incompleteness (MNAR) and introduce NaN values in the DataFrame according to the generated mask. We introduce missing values in a way that depends on the values of specific features and simulate a non-random incompleteness pattern based on the values of certain features. We create a constraint for a column, so if the feature has a certain range (i.e. in this case a range between 51 and 149) of values we make the value NaN, creating in this way a non-random incompleteness pattern, depending on the value of the feature itself. The results of this experiment are almost the same as the one before, so the kind on missing value MNAR or MAR doesn't influence the model, because the values are artificially created and don't have particular meaning for these rules to have a certain impact.
-\item[7.] \textbf{Different percentages of values MCAR for the most informative features}: In this experiment we focus on the most important features of the dataset, so we first split the data in training and testing in order to train and apply a Random Forest Regressor model. From the Random Forest we then extract the rank of the most important features and for this experiment consider the most important features only the first 3 in the ranking, that will be polluted with different percentages from 0.05 to 0.50 of incomplete values. For this experiment in order to have more feature and relevant features we extended the dataset, having 9 features with 4 informative ones. From the results we can see that increasing the percentage of MCAR values in the most important features of the model we get a linear increase of the RMSE, while the models don't overfit too much, having a similar behavior between training and testing, with an increasing error mainly for the GPRegressor, as in all experiments done so far. We can see that the important features, as expected, have a relevant impact on our algorithms and the missing values are a critical problem, that cannot be solved by simply imputing the median value instead of the NaN, because we still lose useful information for the problem. 
-\item[8.] \textbf{Different percentages of values MCAR for the less informative features}: As for the precedent experiment, in this one, in order to extract the less informative features, we used the same procedure, training a Random Forest Regressor model and extracting the ranking of the features, but this time selecting the last three features of the ranking. We also use the same percentages of incomplete MCAR values seen in the previous experiment, but in this case we can see that the influence is really small, so all the algorithms keep their behavior stable, even if increasing a lot the percentage of missing values, and this is because being less informative features they don't impact so much the model. The already stable behavior is kept also stable imputing the median, without relevant results.
-\item[9.] \textbf{Different percentages of values MNAR mixing informative and non informative values}: Mixing the two experiments performed before, keeping the same range of percentages for missing values, but performing both a pollution on the most informative and less informative features we get almost the same result as for the experiment of the most informative features. In almost all the models we find again the increasing linear error with the increasing of the percentage of incompleteness and in this cases the behavior is similar to the experiment 7, so we can imagine that the most informative features influence the most the model, while the less informative ones have a little impact. We can see an interesting behavior in the GPRegressor, though, in which combining the two pollution methods we have an exponential increase in the RMSE and the difference between train and test results, having that the combination of important and less important features create an exponential problem when dealing with incompleteness, that cannot be solved by imputing the median. 
-\item[10.] \textbf{Different percentages combination of values MCAR and MNAR}: In the last experiment on completeness we decided to mix together different percentages of MCAR from 0.05 to 0.5 and some changing MNAR features on ten different datasets. We discover again an incremental behavior of the RMSE, with an abrupt increase in the GPRegressor after a certain threshold of missing values, while the other maintain a linear increasing behavior, and an almost stable trend in the difference between training and testing. 
-\end{enumerate}
-In all the previous experiments we didn't see particular changes in the time needed to run the models, so we never commented the speed because this doesn't influence much our analysis. In general we can assess that the MLP Regressor, being a more sophisticated and complex Regressor takes a longer time to be executed, and also GPRegressor can require more time than the others, but among the different experiments the changes were small, sometimes of around a few seconds. 
+\section{Imputers and native handling}
+\label{sec:imputers}%
+Imputation is an explicit experimental condition, always fitted on the training fold only:
+\begin{itemize}
+    \item \texttt{mean} (the default baseline), \texttt{median} and \texttt{most\_frequent} (degenerate on continuous data);
+    \item \texttt{std\_constant}: each column is filled with its standard deviation. This is a naive constant that reproduces the method of the original study; it is not a recognised imputation method;
+    \item \texttt{knn} (features are scaled first) and \texttt{iterative} (chained regressions with a Bayesian ridge estimator);
+    \item \texttt{mean\_indicator}: mean imputation plus one binary indicator column per incomplete feature, which \citet{josse2019} show to be useful when missingness is informative;
+    \item \texttt{native}: no imputation, only for \texttt{HGBRegressor}, which receives the raw NaN values;
+    \item \texttt{clean}: the unpolluted data, used as the reference in every experiment.
+\end{itemize}
 
-\section{Distinctness}
-\label{sec:section_2_2}%
+\section{Completeness experiments}
+\label{sec:completeness_exps}%
+\begin{itemize}
+    \item C0: baseline with complete data and growing sample size.
+    \item C1, C2: MCAR on all 3 features, low (2.5\%--25\%) and high (27.5\%--50\%) missing rates.
+    \item C3: 20\% MCAR on one feature, as a function of the feature importance rank.
+    \item C4: MCAR with a different rate per column (0\%, 10\%, \ldots) and growing sample size.
+    \item C5: MAR; C6: MNAR (upper tail), both with rates 5\%--50\%.
+    \item C7, C8, C9: MCAR on the most informative, the less informative, and both groups of features.
+    \item C10: MCAR on all features combined with MNAR on one feature.
+\end{itemize}
 
-\subsection{Data collection phase}
-\label{subsec:section_2_2_1}%
-
-\subsection{Experiments on distinctness}
-\label{subsec:section_2_2_2}%
-The experiments we decided to perform are the following:
-\begin{enumerate}
-\item[1.] \textbf{Mid-high distinctness in a random feature}
-For the first experiment, we selected a random column from the artificial dataset and focused on its pollution. Then, we randomly selected a value from the column and pasted it into another cell. We repeated this process until the distinctness index of the column was reduced to the target percentage or lower. We tested the dataset for non-distinctness percentages ranging from 0\% to 50\%.
-
-The results indicate that the GP Regressor model performs poorly because it is unable to construct a probability model based on the unchanged target, resulting in worse performance than in the cleaned dataset. Overall, regardless of the percentage of non-distinct values, the other models performed worse than expected. However, they all had similar performances on the test set, with the distances between the train and test performances being close to zero for all models except for GP Regressor and KNN Regressor, which had slightly better performances over the train set. In the speed plots, nothing remarkable is noticeable since the MLP Regressor always trains slower than others, and the GP Regressor takes more time than simpler models like the Linear Regressor.
-
-\item[2.] \textbf{Low distinctness inside an informative column}
-In the second experiment, we continued the first one but with higher percentages of non-distinct values (i.e., lower percentages of distinctness, ranging from 50\% to 100\%). The performances improved as the distinctness decreased because the models approximated the features with a single value, discarding the information of that feature and focusing on the others. However, the error saturates to a single value since the models have lost a component of the search space. As a result, they will never achieve high performance.
-
-\item[3.] \textbf{Fixed Distinctness of Different Datasets}
-For the third experiment, we fixed the distinctness percentage at 80\% and trained the models on datasets with increasing samples. Also in this case we have applied the pollution function used in the previous two experiments, so the experiments pollutes just one feature over the entire dataset.
-
- In this case, it is observed that the performance is poor and is dependent on the number of samples chosen. The performance graph fluctuates with each iteration, making it difficult to determine the cause. This indicates that the distinctness of a single column has a significant impact on the final model. The experiment affects velocities, as demonstrated by the MLP Regressor. Reducing the uniqueness index within a feature leads to longer training times.
-
-\item[4.] \textbf{Different Percentages among Features}
-In the fourth experiment, we decided to modify the dataset creation function by increasing the number of features to nine and the number of informative features to four. This is because we wanted to see if the general change of most features would cause a drop in model performance or if there would be no changes. The distinctness percentages imposed on the selected features are similar, although not identical, in order to avoid changing all columns in the same way.
-
-The results showed that all models performed poorly overall, regardless of any changes made. Additionally, only the GP Regressor performed better in the training set compared to the test set. The speed plot did not reveal any unexpected results.
-
-\item[5.] \textbf{Random Noise}
-For the fifth experiment, we introduced general noise throughout the dataset to test the models' sensitivity to approximate data. Specifically, we varied the noise's variance (from 0.00625 to 0.0625) at each iteration.
-
-Despite a small change in the data, model performance worsened. However, performance remained similar in the two model evaluation sets. It is important to note that the performance of the previously best-performing models worsens linearly with increasing noise, highlighting the significance of data filtering in achieving a good model.
-
-\item[6.] \textbf{Categorical Variables}
-For the sixth experiment, we discretized the values of a random feature. We increased the number of ranges generated for data approximation by one unit at each iteration.
-
-The results are quite surprising. Although previous experiments have shown how distinctness is an important element that can compromise the reliability of the chosen model, in this case, we note that discretization has a beneficial effect on both the training and test sets. With larger ranges, the performance deviates from the baseline. However, as the number of ranges increases up to 10, the performance of all models improves significantly. The only exception to this is the GP Regressor, which performs worse than the previous cases.
-
-\item[7.] \textbf{Outliers}
-In the seventh experiment, we randomly modified some of the data to create outliers within the dataset.  To do this, we randomly extracted rows and columns (separately) to be selected for modification, and assigned them a random value between 0 and 100. In this way, a few values would have been seen as correct, while those with a very large value would have been visibly outliers.
-
-The performance of all models has significantly worsened, as has the distance between the performance of the training and testing phases. The KNN Regressor is the only model capable of addressing this problem, as it searches for the closest samples to process the outcome. This way, KNN is able to handle the problem of outliers, while simple models like Linear Regressor are no longer good models.
-
-\item[8.] \textbf{High and Low Distinctness Combined}
-The eighth experiment is similar to the fourth experiment, but this time we only modified two random features of the dataset in opposite ways. In particular, we modified the first one by reducing the distinctness to meet the chosen criteria, while in the second case, we kept it high, albeit slightly lower than the original.
-
-Despite the similarity to the aforementioned experiment, the results are significantly different. In fact, the performance of all models worsens by approximately 10 times, clearly demonstrating how the alteration of two features inhibits the models from extracting the necessary information for predicting the target. However, the difference between the performance of the training and testing phases is very similar, as in experiment four. There is nothing evidently important regarding the execution times.
-
-\item[9.] \textbf{Distinctness over Most Informative Feature}
-For our ninth experiment, we chose to increase the number of features available in the dataset to nine and the informative features to four. This is because we wanted to modify the most informative feature (found in the same way as it was done in some completeness experiments), in order to notice if changes to the original distinctness cause problems in the final models.
-
-The results indicate a general decline in the performance of all models. However, it is noteworthy that the GP Regressor did not perform worse, as it did in all previous experiments. However, all models demonstrate a strong influence, as expected, from the information contained in the selected feature.
-\item[10.] \textbf{Distinctness over Less Informative Feature}
-In the last experiment, as in the ninth, we generated a dataset with nine features, four of which are informative. In this case, we explored the dependencies of the models with the least important features (according to the evaluation system used in the previous experiments).
-
-The results are surprising in some respects when compared to the baseline. The models' performance worsens even if they are distinct, settling around high values. Modifying the values contained in the non-informative feature would therefore be... Modifying the values contained in the non-informative feature is crucial, even if they are considered unimportant.
-\end{enumerate}
-
+\section{Distinctness experiments}
+\label{sec:distinctness_exps}%
+The distinctness experiments of the original study are grouped into three families.
+\begin{itemize}
+    \item \textbf{A. Feature-value distinctness} (D1--D4, D8--D10). A random existing value is pasted into another cell of a chosen column until the ratio of distinct values to rows falls to the target. This reduces distinctness but, because the pasted value replaces the true one, it is also a value-substitution (accuracy) error. This is why the effect grows with the importance of the polluted feature: a corrupted informative column hurts, a corrupted noise column does not (see D9 and D10).
+    \item \textbf{B. Duplicate records} (D11, new). Exact copies of random rows are appended so that they make up the requested share of the table. Three conditions are compared: \texttt{duplicated} (group-aware splits so a row and its copies are never split between train and test, and exactly one row per held-out source is scored), \texttt{deduplicated} (the same splits, with duplicates dropped from the training fold only) and \texttt{naive\_split}, a labelled leakage demonstration with a plain shuffled split in which copies of training rows reach the test fold \citep{kaufman2012}.
+    \item \textbf{C. Accuracy and validity} (formerly distinctness experiments 5--7). D5 adds Gaussian noise to the features, D6 reduces one feature to a few bins and D7 inserts outliers. They do not create non-distinct values and were relabelled; they are kept for comparison with the original results.
+\end{itemize}
+The conditions of families A and C are \texttt{polluted} (no imputer) and \texttt{clean}.
 
 \chapter{Pipeline implementation}
 \label{ch:chapter_3}%
 
-\section{Completeness}
-\label{sec:section_3_1}%
+\section{The v3 protocol}
+\label{sec:protocol}%
+Each fold fits a \texttt{TransformedTargetRegressor} that wraps a \texttt{Pipeline} (imputer, \texttt{StandardScaler}, model) with a target scaler. The imputer and both scalers are fitted on the training rows only, so nothing is fitted on test rows; this avoids leakage \citep{kaufman2012}. The scale of nRMSE is fixed by the clean target. A finite-value check raises an error if a NaN would reach a model, so nothing is silently replaced.
 
-\subsection{Pipeline description}
-\label{subsec:section_3_1_1}%
+Splits are \texttt{ShuffleSplit} with 5 folds and a test share of $0.3$. Every experiment uses the repetition seeds 0, 1 and 2. Each seed is expanded with \texttt{numpy}'s \texttt{SeedSequence} into independent seeds for the data generation, the pollution and the splits. The design is paired: for a given seed all conditions and models see the same data, the same pollution mask and the same folds.
 
-In the completeness experiments after creating the dataset, we polluted it with different functions, changing the percentage of the completeness, the size of the dataset and the kind of completeness. After applying the specific pollution function we analyze the results of the regression models, that were executed after performing an imputation of a constant value '0', otherwise the models do not work with null values. 
-After this analysis, in the pipeline we add the data preparation phase, and after trying different data imputation techniques without any remarkable results we decided to use the imputation of the median value and see if it improves the behavior of the models in the different experiments. After the data preparation phase we plot again the results of the algorithms on the cleaned data and confront them with the previous ones. Comparing the plots we never see important changes after the data preparation.
+The main metric is the test nRMSE. The train nRMSE is also stored, so that the train--test gap is available in the generated gap figures. Folds are first averaged within a seed. The plotted bands and the tables report the mean $\pm$ SD over the 3 seeds. These are descriptive spreads across repetitions and not confidence intervals.
 
+\section{Gaussian process kernel}
+\label{sec:gp}%
+The Gaussian process uses a constant times RBF plus white-noise kernel \citep{rasmussen2006}, with normalised target and a lower bound of $0.1$ on the length scale (in standardised feature units) and one optimiser restart. With the default bounds the optimiser could converge to a length scale at the lower limit with a worse marginal likelihood, and the process collapsed to the mean predictor; in a probe on a polluted data set the bounded kernel avoided this collapse, and extra restarts did not fix the problem. Hits of the bounds are recorded in the status of each fold.
 
-\section{Distinctness}
-\label{sec:section_3_2}%
+\section{Differences from the original study}
+\label{sec:differences}%
+The original notebooks (v1) and the faithful repair (v2) are kept in the repository. An audit of v1 found the following defects.
+\begin{itemize}
+    \item \textbf{No imputation equalled mean imputation.} The scaler was fitted on the data with NaN ignored and the NaN were then replaced by zero, which in standardised space is the column mean. The ``raw'' baseline of the original study was therefore mean imputation, and the finding that imputation does not help was partly built in.
+    \item \textbf{Leakage.} Imputers and scalers were fitted before the train/test split, so test rows influenced the fill values.
+    \item \textbf{MAR and MNAR created no missing values.} The thresholds (for example $>100$ on standard Gaussian features) never fired, so those two experiments were complete-data runs.
+    \item \textbf{Discarded imputations.} The results of the standard-deviation, KNN and linear-regression imputation were discarded or applied to one column only, so they equalled the raw data.
+    \item \textbf{Constants instead of NaN.} The ``less informative'' and ``most informative'' experiments wrote a constant value, not a missing value, and the incremental experiment made four of five features entirely missing.
+    \item \textbf{Sample-size axes too narrow.} The axes 1000--1090 rows cannot show a size effect. v3 uses 100--1000.
+    \item \textbf{Distinctness target not reached,} one fixed column polluted, and noise variance used as standard deviation.
+    \item \textbf{Gaussian process collapse} on unscaled targets with default settings (\Cref{sec:gp}); the data were noise free, a single seed was used, and no clean reference was reported.
+\end{itemize}
+The corrections are listed in \texttt{library/v2/CHANGES.md} (faithful repair of the polluters) and \texttt{library/v3/CHANGES.md} (evaluation protocol). For the original conclusions the audit gives the following verdicts, checked against the v3 results.
+\begin{itemize}
+    \item \emph{Imputation is insufficient, error increases persistently:} not supported by the original runs, but in v3 the increase with the missing rate is confirmed (C1, C2), with the explanation that independent features cannot inform the imputer.
+    \item \emph{Missing values in the most informative features are critical:} plausible, but the original run did not create NaN; v3 confirms it (C3, C7--C9 against C8).
+    \item \emph{MAR and MNAR do not influence the model:} invalidated; they produced no NaN. In v3 MAR is mild (C5) and MNAR is harmful with biased imputers (C6).
+    \item \emph{The Gaussian process is more sensitive to missing data:} an artefact of the kernel setup; in v3 the process behaves like the linear model on the clean data (C0).
+    \item \emph{Pollution of unimportant features is crucial (distinctness):} not reproduced (D10).
+    \item \emph{Distinctness behaves non-monotonically or is invariant to the percentage:} a consequence of the algorithm missing its target; in v3 the effect saturates (D1, D2).
+    \item \emph{Distinctness of a single column significantly affects the model:} supported only against a clean reference, and the sample-size version (D3) shows no trend.
+\end{itemize}
 
-\subsection{Pipeline description}
-\label{subsec:section_3_2_1}%
-
-In the distinctness experiments differently from completeness we do not have the data preparation phase, we only create the dataset and then pollute it, also with different percentages of distinctness, with different sizes of the dataset and different kinds of distinctness, like using outliers and random noise to analyze the algorithms behavior. After polluting the dataset we perform the training and the testing with each one of the Regression models chosen for the analysis and we plot the results, analyzing how much the distinctness impacts on our models, given also different settings of the dataset.
-
-%*******************************************************************************************************
 \chapter{Results}
 \label{ch:chapter_4}%
+All numbers in this chapter come from the tables generated for this report. Every table shows the first, a middle and the last point of the x axis (the figures show the full axis) as test nRMSE, mean $\pm$ SD over 3 seeds; lower is better and the clean noise floor is about $0.2$. In the figures, solid lines are means and bands are the SD over seeds.
 
 \section{Completeness}
-\label{sec:section_4_1}%
+\label{sec:res_completeness}%
+\subsection{C0: baseline with complete data}
+\label{sec:c00_baseline}
+Data are regenerated for every $n$ (3 informative features). The linear model reaches $0.188 \pm 0.015$ at $n=100$ and $0.199 \pm 0.004$ at $n=1000$, i.e. the noise floor of about $0.2$, and the Gaussian process is at the same level ($0.194$ and $0.199$). The MLP is slightly above ($0.220$, $0.208$) and \texttt{KNeighborsRegressor} improves with more data ($0.384$ at $n=100$, $0.267$ at $n=1000$), so it is the model that benefits most from sample size and stays above the floor. This is the learning curve that the sample-size experiments C4 and D3 are compared against.
 
-\subsection{Main results of the completeness experiments}
-\label{subsec:section_4_1_1}%
-Based on the experiments conducted on the completeness in a regression problem, we draw the following conclusions:
-\begin{enumerate}
-    \item Impact of Incompleteness on Model Performance:
-        Introduction of incompleteness generally leads to worse model performance, especially when null values are present in the most informative features. This suggests that missing data in crucial variables can significantly hinder the model's ability to make accurate predictions.
-    \item Limited Effectiveness of Imputations:
-        Imputations were found to be insufficient in addressing data quality problems. While they enabled the ML algorithms to run, they did not effectively resolve the underlying issues, resulting in a persistent increase in error. This indicates that imputations alone may not be a robust solution for handling missing data in regression problems.
-    \item Limited Effectiveness of Imputations:
-        Imputations were found to be insufficient in addressing data quality problems. While they enabled the ML algorithms to run, they did not effectively resolve the underlying issues, resulting in a persistent increase in error. This indicates that imputations alone may not be a robust solution for handling missing data in regression problems.
-    \item Absence of Pronounced Overfitting:
-        Despite the increase in error during training due to incompleteness, there wasn't a noticeable occurrence of overfitting. The difference between training and testing results remained stable. This suggests that the models were not excessively adapting to the noise introduced by incomplete data, and their generalization to unseen data was consistent.
-    \item GPRegressor's Poor Performance:
-        The GPRegressor exhibited the worst performance among the tested algorithms. Its behavior was particularly erratic and showed significant variability across different experiments. This suggests that Gaussian Process regression may be more sensitive to the presence of missing data compared to other regression algorithms.
-    \item Almost no impact on speed:
-        The consistent speed of algorithm execution across different experiments is an additional noteworthy conclusion. This finding suggests that, despite variations in data completeness and the associated challenges, the computational efficiency of the algorithms remained relatively stable. The consistent speed implies that the time required to perform each algorithm is not significantly influenced by the presence of incomplete data. This stability in execution time is anyway a valuable information, as it indicates that the algorithms try to handle missing data without causing notable delays.
-\end{enumerate}
-To confirm our conclusions we show some of the most important graphs for completeness.
-
-\newpage
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.55]{Images/completeness/4.pdf}  
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.55]{Images/completeness/5.pdf}  
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/6.pdf}  
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/7.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/8.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/9.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/10.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/11.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/12.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/13.pdf}
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/14.pdf}    
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/15.pdf}     
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/16.pdf}   
-\end{figure}
-\begin{figure}[H]
-    \centering
-    \includegraphics[scale=0.6]{Images/completeness/17.pdf}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c00_baseline/clean_test_nrmse.pdf}
+\caption{C0: test nRMSE of each model, condition \texttt{clean}, mean $\pm$ SD over 3 seeds.}
+\label{fig:c00_baseline_clean_test_nrmse}
 \end{figure}
 
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c00_baseline.tex}}
+\caption{C0: test nRMSE (lower is better) against sample size $n$ (100, 600, 1000 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c00_baseline}
+\end{table}
 
-\newpage
-\newpage
+\subsection{C1: MCAR with low percentages}
+\label{sec:c01_mcar_low}
+Cells of all 3 informative features are removed completely at random (1000 rows). With 2.5\% missing cells the mean-imputed linear model already moves from $0.199$ (clean) to $0.256 \pm 0.008$, and reaches $0.543 \pm 0.017$ at 25\%. \texttt{median}, \texttt{iterative} and \texttt{mean\_indicator} give practically the same numbers as \texttt{mean} ($0.256$, $0.256$ and $0.254$ at 2.5\%; $0.543$, $0.544$ and $0.541$ at 25\%): the three features are generated independently, so the other columns carry no information on the missing one and every reasonable imputer ends at the column centre. \texttt{knn} is slightly worse ($0.264$ and $0.580$). The two naive options are clearly worse: \texttt{most\_frequent}, which is degenerate on continuous data, gives $0.502$ and $0.880$, and \texttt{std\_constant} (the method of the original study) gives $0.302 \pm 0.027$ and $0.659 \pm 0.034$. \texttt{KNeighborsRegressor} shows the same ordering at a higher level ($0.319 \to 0.616$ with \texttt{mean}). The native-NaN \texttt{HistGradientBoostingRegressor} behaves like its mean-imputed counterpart ($0.296$ against $0.305$ at 2.5\%, $0.601$ against $0.599$ at 25\%).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c01_mcar_low/model_LinearRegressor_test_nrmse.pdf}
+\caption{C1: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c01_mcar_low_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c01_mcar_low/mean_test_nrmse.pdf}
+\caption{C1: test nRMSE of each model, condition \texttt{mean}, mean $\pm$ SD over 3 seeds.}
+\label{fig:c01_mcar_low_mean_test_nrmse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c01_mcar_low/model_HGBRegressor_test_nrmse.pdf}
+\caption{C1: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c01_mcar_low_model_HGBRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c01_mcar_low.tex}}
+\caption{C1: test nRMSE (lower is better) against missing rate (0.025, 0.15, 0.25 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c01_mcar_low}
+\end{table}
+
+\subsection{C2: MCAR with high percentages}
+\label{sec:c02_mcar_high}
+The same setting at 27.5\%--50\% missing cells (\texttt{most\_frequent} and \texttt{std\_constant} omitted). The mean-imputed linear model goes from $0.564 \pm 0.011$ to $0.719 \pm 0.006$ and \texttt{KNeighborsRegressor} from $0.634$ to $0.813$. \texttt{knn} imputation is again a little worse ($0.602 \to 0.755$ for the linear model), \texttt{iterative} is equal to \texttt{mean} up to 40\% and slightly worse at 50\% ($0.727$ against $0.719$), and the missing-value indicator brings no gain ($0.718$). The native \texttt{HistGradientBoostingRegressor} gives $0.627 \to 0.780$, close to its mean-imputed version ($0.623 \to 0.774$).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c02_mcar_high/model_LinearRegressor_test_nrmse.pdf}
+\caption{C2: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c02_mcar_high_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c02_mcar_high/mean_test_nrmse.pdf}
+\caption{C2: test nRMSE of each model, condition \texttt{mean}, mean $\pm$ SD over 3 seeds.}
+\label{fig:c02_mcar_high_mean_test_nrmse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c02_mcar_high/model_HGBRegressor_test_nrmse.pdf}
+\caption{C2: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c02_mcar_high_model_HGBRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c02_mcar_high.tex}}
+\caption{C2: test nRMSE (lower is better) against missing rate (0.275, 0.4, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c02_mcar_high}
+\end{table}
+
+\subsection{C3: fixed MCAR on a single feature}
+\label{sec:c03_mcar_one_feature}
+20\% of one column is removed; there are 10 features, ranks 0--4 are informative and ranks 5--9 are noise. Missingness in the most important feature (rank 0) raises the mean-imputed linear model from $0.202$ (clean) to $0.365 \pm 0.033$, whereas for the noise features at rank 5 and 9 it stays at $0.202$, identical to the clean value. \texttt{median} and \texttt{iterative} imputation reproduce these values ($0.365$, $0.366$). The native-NaN boosting model shows the same pattern ($0.445$ at rank 0 against $0.301$ and $0.302$ at ranks 5 and 9). Only informative features matter.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c03_mcar_one_feature/model_LinearRegressor_test_nrmse.pdf}
+\caption{C3: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c03_mcar_one_feature_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c03_mcar_one_feature.tex}}
+\caption{C3: test nRMSE (lower is better) against feature rank by true $|$coefficient$|$ (0, 5, 9 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c03_mcar_one_feature}
+\end{table}
+
+\subsection{C4: incremental MCAR per feature with growing sample size}
+\label{sec:c04_incremental}
+Column $i$ loses $10 i$\% of its cells (5 features, 3 informative) while $n$ grows. The linear model with mean imputation gives $0.428 \pm 0.179$, $0.439 \pm 0.152$ and $0.525 \pm 0.097$ at $n=100$, $600$, $1000$, against $0.188$, $0.198$ and $0.200$ for the clean data. There is no clear trend with $n$ and the SD over seeds is large (up to $0.179$). The boosting model shows the same absence of a trend ($0.668$, $0.512$, $0.586$ with \texttt{mean}). The polluter uses the same seed for every column, so the missing-row sets are nested; this is kept and listed as a limitation.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c04_incremental/model_LinearRegressor_test_nrmse.pdf}
+\caption{C4: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c04_incremental_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c04_incremental.tex}}
+\caption{C4: test nRMSE (lower is better) against sample size $n$ (100, 600, 1000 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c04_incremental}
+\end{table}
+
+\subsection{C5: MAR}
+\label{sec:c05_mar}
+Feature 2 is removed where feature 1 exceeds its $(1-x)$ quantile, so the realised rate is $x$ and depends only on an observed value. The effect is mild compared with MCAR on all features: the mean-imputed linear model gives $0.217 \pm 0.023$, $0.269 \pm 0.085$ and $0.309 \pm 0.128$ at 5\%, 30\% and 50\% (clean $0.199$). \texttt{median}, \texttt{iterative} and \texttt{mean\_indicator} are indistinguishable from \texttt{mean} (for example $0.309$, $0.309$ and $0.310$ at 50\%). The SD over seeds grows with the rate, so the seeds disagree on how harmful the mechanism is. Native boosting gives $0.263$, $0.320$, $0.362$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c05_mar/model_LinearRegressor_test_nrmse.pdf}
+\caption{C5: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c05_mar_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c05_mar.tex}}
+\caption{C5: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c05_mar}
+\end{table}
+
+\subsection{C6: MNAR upper tail (self-masking)}
+\label{sec:c06_mnar}
+Feature 1 is removed when its own value exceeds its $(1-x)$ quantile, so the largest values vanish. Here the imputer matters. Mean imputation of the linear model gives $0.422 \pm 0.048$, $0.664 \pm 0.092$ and $0.740 \pm 0.112$, and \texttt{iterative} imputation is identical ($0.422$, $0.664$, $0.740$): both place the missing values at the centre of the observed (truncated) distribution and are biased. Adding the missing-value indicator recovers a large part of the loss ($0.206 \pm 0.003$, $0.301 \pm 0.024$, $0.388 \pm 0.041$), because the indicator tells the model that the value was in the upper tail. The native boosting model behaves like the indicator variant ($0.257$, $0.350$, $0.443$) and is better than its mean-imputed version ($0.292$, $0.358$, $0.452$).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c06_mnar/model_LinearRegressor_test_nrmse.pdf}
+\caption{C6: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c06_mnar_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c06_mnar/model_HGBRegressor_test_nrmse.pdf}
+\caption{C6: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c06_mnar_model_HGBRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c06_mnar.tex}}
+\caption{C6: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c06_mnar}
+\end{table}
+
+\subsection{C7: MCAR in the most informative features}
+\label{sec:c07_mcar_most}
+The 3 most important of 9 features (4 informative) lose 5\%--50\% of their cells. The mean-imputed linear model gives $0.300 \pm 0.021$, $0.578 \pm 0.038$ and $0.705 \pm 0.035$ (clean $0.200$); \texttt{median} and \texttt{iterative} are equal. Native boosting is slightly worse ($0.373$, $0.647$, $0.792$).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c07_mcar_most/model_LinearRegressor_test_nrmse.pdf}
+\caption{C7: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c07_mcar_most_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c07_mcar_most.tex}}
+\caption{C7: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c07_mcar_most}
+\end{table}
+
+\subsection{C8: MCAR in the less informative features}
+\label{sec:c08_mcar_less}
+The same experiment for the 3 least important features. The linear model with any imputer stays at $0.199$ for all rates, the clean value, and boosting stays at about $0.27$ ($0.270$, $0.269$, $0.268$ with \texttt{mean}). Missing values in uninformative columns are harmless.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c08_mcar_less/model_LinearRegressor_test_nrmse.pdf}
+\caption{C8: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c08_mcar_less_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c08_mcar_less.tex}}
+\caption{C8: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c08_mcar_less}
+\end{table}
+
+\subsection{C9: MCAR mixing informative and non-informative features}
+\label{sec:c09_mcar_mixed}
+Both sets (the 3 most and the 3 least important features, ranked once on the clean data) lose cells. The numbers coincide with C7 ($0.301$, $0.577$, $0.705$ for the mean-imputed linear model), showing that the additional uninformative columns add nothing. Boosting with \texttt{mean} gives $0.372$, $0.654$, $0.801$. Because the groups of C7 and C9 share row sets, the two experiments are not independent evidence.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c09_mcar_mixed/model_LinearRegressor_test_nrmse.pdf}
+\caption{C9: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c09_mcar_mixed_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c09_mcar_mixed.tex}}
+\caption{C9: test nRMSE (lower is better) against missing rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c09_mcar_mixed}
+\end{table}
+
+\subsection{C10: MCAR on all features combined with MNAR on one feature}
+\label{sec:c10_mcar_mnar}
+All 10 features lose a share $x$ of their cells at random and feature 0 additionally loses its upper-tail 25\%. The mean-imputed linear model gives $0.346 \pm 0.042$, $0.595 \pm 0.032$, $0.748 \pm 0.012$. The indicator helps at 5\% ($0.310 \pm 0.014$) but not at higher rates ($0.589$ at 30\%, $0.749$ at 50\%), where the MCAR component dominates. \texttt{iterative} imputation is clearly worse at 50\% ($0.877 \pm 0.020$). Boosting is similar to mean imputation with native NaN handling ($0.435$, $0.687$, $0.841$).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c10_mcar_mnar/model_LinearRegressor_test_nrmse.pdf}
+\caption{C10: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c10_mcar_mnar_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/c10_mcar_mnar/model_HGBRegressor_test_nrmse.pdf}
+\caption{C10: test nRMSE of \texttt{HGBRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:c10_mcar_mnar_model_HGBRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/c10_mcar_mnar.tex}}
+\caption{C10: test nRMSE (lower is better) against MCAR rate (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:c10_mcar_mnar}
+\end{table}
+
 \section{Distinctness}
-\label{sec:section_4_2}%
+\label{sec:res_distinctness}%
+\subsection*{Family A: feature-value distinctness}
+\subsection{D1: mid-high distinctness}
+\label{sec:d1_mid_high}
+One random feature of 3 loses distinct values. The polluted linear model rises from $0.199$ to $0.240 \pm 0.020$ at 25\% and $0.271 \pm 0.038$ at 50\%, and the other models follow the same curve (BayesianRidge $0.271$, Gaussian process $0.271$, \texttt{KNeighborsRegressor} $0.267 \to 0.333$). The pollution pastes another row's value into a cell, so it is also a value-substitution (accuracy) error.
 
-\subsection{Main results of the distinctness experiments}
-\label{subsec:section_4_2_1}%
-
-Based on the experiments conducted on the distinctness in a regression problem, we draw the following conclusions:
-\begin{enumerate}
-    \item Distinctness Impact on Model Performance:
-        Model performance is notably affected by distinctness changes in the dataset. Generally, as distinctness percentages decrease, models tend to perform poorly. This is evident across various experiments involving different approaches to manipulating distinctness.
-    \item GP Regressor's Sensitivity to Distinctness:
-        The GP Regressor consistently exhibits poor performance under distinctness variations, struggling to construct a meaningful probability model based on altered targets. Its results are consistently worse than those of other models.
-    \item Similarity in Train-Test Performance for Most Models:
-        Across experiments, models, except GP Regressor and KNN Regressor, demonstrate similar performances on both training and testing sets. The distances between training and testing performances are generally close to zero, indicating a consistent generalization ability.
-    \item Effect of Increased Distinctness Percentages:
-        When distinctness percentages increase, resulting in lower percentages of distinct values, model performances tend to improve. However, performance eventually saturates to a single value as models lose a component of the search space, making it challenging to achieve high accuracy.
-    \item Distinctness and Dataset Size Relationship:
-        Distinctness of a single column significantly impacts the final model, as observed in experiments with fixed distinctness percentages and increasing dataset sizes. The fluctuating performance graph highlights the difficulty in determining the precise cause, emphasizing the need for careful consideration of distinctness in dataset design.
-    \item Limited Influence of Algorithm Speed:
-        The speed of the algorithms remains relatively stable across distinctness experiments. No remarkable changes in algorithm speed were observed, indicating that the computational efficiency of the models is not significantly influenced by variations in distinctness.
-\end{enumerate}
-To confirm our conclusions we show some of the most important graphs for distinctness.
-
-\newpage
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{Images/distinctness/dex1/Distinctness - Mid-high distinctness - Trial regression distance train-test.pdf}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d1_mid_high/polluted_test_nrmse.pdf}
+\caption{D1: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d1_mid_high_polluted_test_nrmse}
 \end{figure}
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{Images/distinctness/dex1/Distinctness - Mid-high distinctness - Trial regression performance.pdf}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d1_mid_high.tex}}
+\caption{D1: test nRMSE (lower is better) against fraction of non-distinct values (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d1_mid_high}
+\end{table}
+
+\subsection{D2: mid-low distinctness}
+\label{sec:d2_mid_low}
+From 50\% to 100\% the linear model goes $0.271 \pm 0.038$, $0.282 \pm 0.045$, $0.282 \pm 0.045$: the curve saturates, and at 100\% the column is constant, so the models effectively lose one feature. The difference between seeds ($\pm 0.045$) reflects which random feature was polluted.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d2_mid_low/polluted_test_nrmse.pdf}
+\caption{D2: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d2_mid_low_polluted_test_nrmse}
 \end{figure}
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{Images/distinctness/dex1/Distinctness - Mid-high distinctness - Zoomed trial regression distance train-test.pdf}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d2_mid_low.tex}}
+\caption{D2: test nRMSE (lower is better) against fraction of non-distinct values (0.5, 0.75, 1 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d2_mid_low}
+\end{table}
+
+\subsection{D3: fixed distinctness, increasing sample size}
+\label{sec:d3_fixed_n}
+With a fixed 20\% of non-distinct values in one random feature, the linear model gives $0.412 \pm 0.102$, $0.514 \pm 0.052$ and $0.232 \pm 0.015$ at $n=100$, 600 and 1000 (clean $0.188$, $0.197$, $0.199$). There is no monotone size trend and the SD over seeds is large; the experiment mainly shows seed-to-seed variance (which feature is polluted, which values are pasted) and not a sample-size effect.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d3_fixed_n/polluted_test_nrmse.pdf}
+\caption{D3: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d3_fixed_n_polluted_test_nrmse}
 \end{figure}
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{Images/distinctness/dex1/Distinctness - Mid-high distinctness - Zoomed trial regression performance.pdf}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d3_fixed_n.tex}}
+\caption{D3: test nRMSE (lower is better) against sample size $n$ (100, 600, 1000 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d3_fixed_n}
+\end{table}
+
+\subsection{D4: different percentages among features}
+\label{sec:d4_features}
+Several of 9 features (4 informative) are polluted with percentages drawn around $x$. The linear model gives $0.347 \pm 0.131$, $0.645 \pm 0.226$ and $0.756 \pm 0.231$ (clean $0.200$); \texttt{KNeighborsRegressor} gives $0.551$, $0.788$ and $0.869$. The SD over seeds is large because the set of polluted columns differs between seeds.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d4_features/polluted_test_nrmse.pdf}
+\caption{D4: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d4_features_polluted_test_nrmse}
 \end{figure}
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{Images/distinctness/dex1/Distinctness - Mid-high distinctness - Trial regression speed.pdf}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d4_features.tex}}
+\caption{D4: test nRMSE (lower is better) against mean percentage (0.05, 0.3, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d4_features}
+\end{table}
+
+\subsection{D8: high and low distinctness combined}
+\label{sec:d8_high_low}
+Two random columns are polluted, with $x$ and $1-x$ non-distinct values. At $x=0.25$ the linear model is at $0.865 \pm 0.081$ and at 50\% at $0.911 \pm 0.034$, close to the nRMSE of 1 of a mean predictor; \texttt{KNeighborsRegressor} reaches $0.948$ and $0.986$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d8_high_low/polluted_test_nrmse.pdf}
+\caption{D8: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d8_high_low_polluted_test_nrmse}
 \end{figure}
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{Images/distinctness/dex1/Distinctness - Mid-high distinctness - Zoomed trial regression speed.pdf}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d8_high_low.tex}}
+\caption{D8: test nRMSE (lower is better) against fraction of non-distinct values $x$ (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d8_high_low}
+\end{table}
+
+\subsection{D9: distinctness on the most informative features}
+\label{sec:d9_informative}
+The 3 most important of 9 features are polluted. The linear model goes from $0.200$ to $0.698 \pm 0.029$ and $0.918 \pm 0.025$, and \texttt{KNeighborsRegressor} from $0.471$ to $0.816$ and $1.019 \pm 0.015$, i.e. worse than a mean predictor.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d9_informative/polluted_test_nrmse.pdf}
+\caption{D9: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d9_informative_polluted_test_nrmse}
 \end{figure}
-    
 
-    
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d9_informative.tex}}
+\caption{D9: test nRMSE (lower is better) against fraction of non-distinct values (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d9_informative}
+\end{table}
 
+\subsection{D10: distinctness on the less informative features}
+\label{sec:d10_less_informative}
+The same on the 3 least important features. The linear model stays at $0.200$, $0.200$, $0.199$, equal to the clean reference, and so do BayesianRidge, the Gaussian process and \texttt{LinearSVR} (about $0.20$). \texttt{KNeighborsRegressor} is high ($0.471$ at rate 0) but also essentially flat ($0.479$, $0.482$): its level comes from the many uninformative columns that enter the distance, not from the pollution. This contradicts the original statement that the pollution of unimportant features was crucial.
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d10_less_informative/polluted_test_nrmse.pdf}
+\caption{D10: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d10_less_informative_polluted_test_nrmse}
+\end{figure}
 
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d10_less_informative.tex}}
+\caption{D10: test nRMSE (lower is better) against fraction of non-distinct values (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d10_less_informative}
+\end{table}
 
+\subsection*{Family B: duplicate records}
+\subsection{D11: duplicate records}
+\label{sec:d11_duplicates}
+Exact copies of rows are appended (1000 original rows, 3 features). With group-aware splits (\texttt{duplicated}) the linear model is unaffected ($0.199$ at all rates), and \texttt{KNeighborsRegressor} rises moderately from $0.267$ to $0.274 \pm 0.004$ and $0.283 \pm 0.006$ because copies re-weight neighbours. Deduplicating the training fold removes this effect ($0.267$ throughout). With the leaky \texttt{naive\_split} the linear model is still unchanged, but \texttt{KNeighborsRegressor} appears to improve from $0.267$ to $0.251 \pm 0.002$ and $0.223 \pm 0.002$ because copies of training rows are scored in the test fold: an optimistic, invalid estimate.
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d11_duplicates/model_KNNRegressor_test_nrmse.pdf}
+\caption{D11: test nRMSE of \texttt{KNNRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:d11_duplicates_model_KNNRegressor_test_nrmse}
+\end{figure}
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d11_duplicates/model_LinearRegressor_test_nrmse.pdf}
+\caption{D11: test nRMSE of \texttt{LinearRegressor} for each condition, mean $\pm$ SD over 3 seeds.}
+\label{fig:d11_duplicates_model_LinearRegressor_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d11_duplicates.tex}}
+\caption{D11: test nRMSE (lower is better) against duplicate rate (0, 0.25, 0.5 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d11_duplicates}
+\end{table}
+
+\subsection*{Family C: accuracy and validity}
+\subsection{D5: random noise on the features (accuracy)}
+\label{sec:d5_noise}
+Gaussian noise is added to all cells. The linear model degrades smoothly, $0.216 \pm 0.005$, $0.279 \pm 0.008$ and $0.318 \pm 0.010$ (clean $0.199$), all models by almost the same amount (\texttt{KNeighborsRegressor} $0.282$, $0.337$, $0.377$). This is the usual attenuation by errors in the features.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d5_noise/polluted_test_nrmse.pdf}
+\caption{D5: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d5_noise_polluted_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d5_noise.tex}}
+\caption{D5: test nRMSE (lower is better) against noise variance (0.00625, 0.0375, 0.0625 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d5_noise}
+\end{table}
+
+\subsection{D6: binning one feature (precision)}
+\label{sec:d6_bins}
+With 1 bin the feature is constant and the linear model is at $0.630 \pm 0.233$; with 6 bins it recovers to $0.265 \pm 0.044$ and with 10 bins to $0.229 \pm 0.019$, still above the clean $0.199$. Binning always loses information; the apparent improvement with more bins is the recovery of that information, not a benefit of discretisation.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d6_bins/polluted_test_nrmse.pdf}
+\caption{D6: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d6_bins_polluted_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d6_bins.tex}}
+\caption{D6: test nRMSE (lower is better) against number of bins (1, 6, 10 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d6_bins}
+\end{table}
+
+\subsection{D7: outliers (validity)}
+\label{sec:d7_outliers}
+A random cell in the chosen rows is replaced by a random integer in $[0, 100)$ on standardised features, an extreme contamination. The linear model, BayesianRidge and \texttt{LinearSVR} fail: $1.256 \pm 0.305$, $0.992$ and $0.996$ for the linear model, $2.397 \pm 0.189$ at 1.25\% for \texttt{LinearSVR}, i.e. no better than (or worse than) a mean predictor. The Gaussian process ($0.242$, $0.376$, $0.452$) and \texttt{KNeighborsRegressor} ($0.315$, $0.399$, $0.479$) degrade gracefully, and the MLP lies in between ($0.527 \pm 0.229$, $0.337$, $0.399$).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{v3/d7_outliers/polluted_test_nrmse.pdf}
+\caption{D7: test nRMSE of each model, condition \texttt{polluted}, mean $\pm$ SD over 3 seeds.}
+\label{fig:d7_outliers_polluted_test_nrmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{Tables/v3/d7_outliers.tex}}
+\caption{D7: test nRMSE (lower is better) against fraction of rows with an outlier (0.0125, 0.075, 0.125 shown); mean $\pm$ SD over 3 seeds.}
+\label{tab:d7_outliers}
+\end{table}
+
+\chapter{Conclusions and limitations}
+\label{ch:chapter_5}%
+
+\section{Conclusions}
+\label{sec:conclusions}%
+\begin{itemize}
+    \item \textbf{MCAR.} Mean, median, iterative and mean-plus-indicator imputation are equivalent because the features are independent and the other columns carry no information about the missing one (\Cref{tab:c01_mcar_low,tab:c02_mcar_high}). \texttt{most\_frequent} is degenerate, \texttt{std\_constant} is clearly worse, and \texttt{knn} is slightly worse. The error grows steadily with the missing rate.
+    \item \textbf{Only informative features matter.} Missing values in noise features leave the error at the clean level (C3 rank 5 and 9, C8), while the same rate in informative features is costly (C3 rank 0, C7, C9). D10 shows the same for distinctness.
+    \item \textbf{MAR} is mild at the rates tested (\Cref{tab:c05_mar}) with a large spread between seeds.
+    \item \textbf{MNAR.} Mean and iterative imputation are biased; the missing-value indicator recovers a large part of the loss and the native boosting model behaves similarly (\Cref{tab:c06_mnar}). In the combined MCAR plus MNAR setting the advantage of the indicator disappears at high rates (\Cref{tab:c10_mcar_mnar}).
+    \item \textbf{Duplicates} do not hurt the linear model with group-aware splits; \texttt{KNeighborsRegressor} is slightly affected and deduplication of the training fold removes the effect, while a naive split inflates the apparent performance of \texttt{KNeighborsRegressor} (\Cref{tab:d11_duplicates}).
+    \item \textbf{Outliers} break the linear model, BayesianRidge and \texttt{LinearSVR}, which fall to or below the level of a mean predictor, while the Gaussian process and \texttt{KNeighborsRegressor} are more robust (\Cref{tab:d7_outliers}). Noise and binning degrade all models smoothly (D5, D6).
+    \item \textbf{Substitution.} Pasting a value into a column behaves as an accuracy error: the effect scales with feature importance and saturates (D1, D2, D8, D9).
+    \item \textbf{Sample size.} The sample-size experiments with pollution (C4, D3) show no size trend and a large seed variance; only the clean learning curve (C0) shows a size effect, mainly for \texttt{KNeighborsRegressor}.
+\end{itemize}
+
+\section{Limitations}
+\label{sec:limitations}%
+\begin{itemize}
+    \item Only 3 seeds are used, so the SD is a rough descriptive spread and not a confidence interval.
+    \item The data are synthetic with independent Gaussian features; the conclusion that simple imputers are equivalent depends on this and would not hold for correlated features.
+    \item \texttt{MLPRegressor} and \texttt{LinearSVR} may report convergence warnings, which are recorded in the fold status and not suppressed.
+    \item In C9 the groups of features share row sets with C7, and in C4 the missing-row sets of the columns are nested.
+    \item The figures and tables are generated from the saved results (\texttt{Plot/v3}) by \texttt{Report/tools/build\_v3\_assets.py}; they are only as current as the last notebook run.
+    \item The tables show three points of each x axis; the complete series are in the figures and in the results files.
+\end{itemize}
 
 \cleardoublepage
 \begin{thebibliography}{100}
         \bibitem{github_reference} \textbf{GitHub repository that contains all the experiments mentioned in the document} \href{https://github.com/BiancaSavoiu/DIQ_project}{https://github.com/BiancaSavoiu/DIQproject}
+        \bibitem{rubin1976} D.~B. Rubin. Inference and missing data. \textit{Biometrika}, 63(3):581--592, 1976.
+        \bibitem{littlerubin2019} R.~J.~A. Little and D.~B. Rubin. \textit{Statistical Analysis with Missing Data}, 3rd edition. Wiley, 2019.
+        \bibitem{josse2019} J.~Josse, N.~Prost, E.~Scornet and G.~Varoquaux. On the consistency of supervised learning with missing values. arXiv:1902.06931, 2019.
+        \bibitem{batini2016} C.~Batini and M.~Scannapieco. \textit{Data and Information Quality}. Springer, 2016.
+        \bibitem{pedregosa2011} F.~Pedregosa et al. Scikit-learn: Machine learning in Python. \textit{Journal of Machine Learning Research}, 12:2825--2830, 2011.
+        \bibitem{rasmussen2006} C.~E. Rasmussen and C.~K.~I. Williams. \textit{Gaussian Processes for Machine Learning}. MIT Press, 2006.
+        \bibitem{kaufman2012} S.~Kaufman, S.~Rosset, C.~Perlich and O.~Stitelman. Leakage in data mining. \textit{ACM Transactions on Knowledge Discovery from Data}, 6(4), 2012.
     \end{thebibliography}
 \end{document}
