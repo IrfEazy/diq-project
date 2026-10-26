@@ -7,3 +7,7 @@ Every number in the prose of the results chapter must come from `Tables/v3/*.tex
 v3 figures are read from `Report/Images/v3/<exp_id>/` (`graphicspath ./Images/`, so `\includegraphics{v3/<exp_id>/<file>.pdf}`) and the tables are `\input{Tables/v3/<exp_id>.tex}`. Both are generated, not hand-made: after running the v3 notebooks, run `uv run --frozen python Report/tools/build_v3_assets.py` from the repository root; it reads `Plot/v3/results/*.json` and the selection in `Report/v3_assets.json`. The figures and tables are tracked.
 
 `Images/completeness/` and `Images/distinctness/` are the v1 figures and are no longer referenced. The tracked `Report/DIQ_project.pdf` is the v3 build of `Project.tex`. It is git-ignored, so copy the rebuilt `Project.pdf` over it and add it with `git add -f`.
+
+`build_v3_assets.py` limits: run it from the repository root (it reads the results through a cwd-relative path). A missing results file or a malformed manifest ends with a raw traceback rather than a clear message, and outputs already written before the failure stay on disk.
+
+When the results change, update the prose with the new table values and re-check every number; keep claims as strong as 3 seeds allow (descriptive mean and SD, no significance claims).
