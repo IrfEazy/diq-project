@@ -94,4 +94,6 @@ duplicate splits, repetitions over seeds).
 The repository was later flattened to a single unversioned variant. That change moved the modules to `library/`, put the
 polluters in `pollution.py`, renamed the notebooks, changed the default output directory to `Plot/`, and replaced the
 payload field `version` by `schema_version: 1`. Results are unchanged: a quick run of both notebooks was compared
-record by record with the stored full results (same data hashes, test hashes and metrics).
+record by record with the stored full results: data hashes, test hashes, metrics, status and sizes are identical. The only
+difference is the extra `requested_not_distinct_low` key in the `meta` of the polluted D8 records, which the notebook
+added after the stored full run; the stored file does not have it.
