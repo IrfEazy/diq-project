@@ -20,7 +20,7 @@ The library evaluates models with a per-fold protocol and takes the data-quality
 - `runner.py`: `run_experiment`, `load_results`, `results_path`, `records_frame` and `summarise`.
 - `plots.py`: `plot_experiment(path_or_exp_id)` builds every figure from the results JSON alone.
 - `selfcheck.py`: protocol invariants. Run it with `uv run --frozen python -m library.selfcheck`. It prints
-  `selfcheck ok` and takes about 10 s.
+  `selfcheck ok` and takes about 20 s.
 
 ## Protocol
 
