@@ -156,3 +156,6 @@ cython_debug/
 
 # Generated figures and results JSON (all of Plot/)
 Plot/
+
+# Personal Claude Code instructions
+CLAUDE.local.md
