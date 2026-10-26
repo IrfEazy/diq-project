@@ -168,3 +168,23 @@ condition (`mean`), 5 folds and `n_jobs=8`. Wall time was **about 61 s** (60.7 s
 `GPRegressor` takes about 6.4 s per fold fit and accounts for about 320 s of the 334 s total fit CPU time. The other
 models together take about 12 s (MLP 9 s, the rest under 1 s each). The cost therefore scales with the number of
 GP tasks: roughly `ceil(GP tasks / 8) * 32 s`, plus the cheap models.
+
+Full notebook runs (3 seeds, `N_JOBS = 8`, same machine, 2026-10-26): `distinctness_v3.ipynb` 2877 s and
+`completeness_v3.ipynb` 5531 s, with no errors and no null metrics.
+
+## Known limitations
+
+- Three repetition seeds only; the bands describe spread across them and are not confidence intervals.
+- The features from `make_regression` are independent Gaussians, so other columns carry no information about a
+  missing one. Under MCAR this makes `mean`, `median`, `iterative` and `mean_indicator` practically equivalent; a
+  benefit of `knn` or `iterative` would need correlated features.
+- C4 inherits the v2 polluter, which seeds every column identically, so the missing-row sets are nested across
+  columns. C9 inherits the v2 reseeding, so the most-informative and less-informative groups share row sets.
+- D3 and other `make_data(seed, x)` experiments regenerate the data per x. `make_regression` draws the
+  coefficients after X, so the true coefficients change with n; the D3 curve reflects the weight of the polluted
+  feature (the same column index within a seed), not the sample size.
+- D8 meta at x = 0 records the requested low-distinctness value although no pollution is applied.
+- `run_experiment` detects `make_data(seed, x)` from the signature. A second parameter with a default value is
+  still treated as x; keep x a required parameter.
+- MLP and LinearSVR raise convergence warnings in a few percent of folds; GP bound hits are rare (they are listed
+  in each record's `status`).
