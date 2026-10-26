@@ -1,0 +1,833 @@
+{
+ "c00_baseline": {
+  "figures": [
+   "clean_test_nrmse.pdf"
+  ],
+  "table": {
+   "models": [
+    "LinearRegressor",
+    "GPRegressor",
+    "KNNRegressor",
+    "MLPRegressor"
+   ],
+   "conditions": [
+    "clean"
+   ]
+  }
+ },
+ "c01_mcar_low": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf",
+   "mean_test_nrmse.pdf",
+   "model_HGBRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "clean",
+     "KNNRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "KNNRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "KNNRegressor"
+    ],
+    [
+     "most_frequent",
+     "LinearRegressor"
+    ],
+    [
+     "most_frequent",
+     "KNNRegressor"
+    ],
+    [
+     "std_constant",
+     "LinearRegressor"
+    ],
+    [
+     "std_constant",
+     "KNNRegressor"
+    ],
+    [
+     "knn",
+     "LinearRegressor"
+    ],
+    [
+     "knn",
+     "KNNRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "KNNRegressor"
+    ],
+    [
+     "mean_indicator",
+     "LinearRegressor"
+    ],
+    [
+     "mean_indicator",
+     "KNNRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c02_mcar_high": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf",
+   "mean_test_nrmse.pdf",
+   "model_HGBRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "clean",
+     "KNNRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "KNNRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "KNNRegressor"
+    ],
+    [
+     "knn",
+     "LinearRegressor"
+    ],
+    [
+     "knn",
+     "KNNRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "KNNRegressor"
+    ],
+    [
+     "mean_indicator",
+     "LinearRegressor"
+    ],
+    [
+     "mean_indicator",
+     "KNNRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c03_mcar_one_feature": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c04_incremental": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c05_mar": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean_indicator",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c07_mcar_most": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c08_mcar_less": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c09_mcar_mixed": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "median",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c06_mnar": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf",
+   "model_HGBRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean_indicator",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "mean_indicator",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "c10_mcar_mnar": {
+  "figures": [
+   "model_LinearRegressor_test_nrmse.pdf",
+   "model_HGBRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "clean",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "LinearRegressor"
+    ],
+    [
+     "iterative",
+     "LinearRegressor"
+    ],
+    [
+     "mean_indicator",
+     "LinearRegressor"
+    ],
+    [
+     "mean",
+     "HGBRegressor"
+    ],
+    [
+     "mean_indicator",
+     "HGBRegressor"
+    ],
+    [
+     "native",
+     "HGBRegressor"
+    ]
+   ]
+  }
+ },
+ "d1_mid_high": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d2_mid_low": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d3_fixed_n": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d4_features": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d8_high_low": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d9_informative": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d10_less_informative": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d5_noise": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d6_bins": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d7_outliers": {
+  "figures": [
+   "polluted_test_nrmse.pdf"
+  ],
+  "table": {
+   "rows": [
+    [
+     "polluted",
+     "LinearRegressor"
+    ],
+    [
+     "polluted",
+     "BayesianRidge"
+    ],
+    [
+     "polluted",
+     "GPRegressor"
+    ],
+    [
+     "polluted",
+     "SVMRegressor"
+    ],
+    [
+     "polluted",
+     "KNNRegressor"
+    ],
+    [
+     "polluted",
+     "MLPRegressor"
+    ],
+    [
+     "clean",
+     "LinearRegressor"
+    ]
+   ]
+  }
+ },
+ "d11_duplicates": {
+  "figures": [
+   "model_KNNRegressor_test_nrmse.pdf",
+   "model_LinearRegressor_test_nrmse.pdf"
+  ],
+  "table": {
+   "models": [
+    "LinearRegressor",
+    "KNNRegressor"
+   ],
+   "conditions": [
+    "duplicated",
+    "deduplicated",
+    "naive_split"
+   ]
+  }
+ }
+}
